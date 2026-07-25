@@ -5,3 +5,4 @@ __pycache__/
 data/papers/*.xml
 .DS_Store
 data/processed/
+data/vector_store/
