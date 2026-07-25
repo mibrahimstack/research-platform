@@ -1,0 +1,31 @@
+# --- Core backend ---
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+
+# --- NLP / entity extraction ---
+spacy
+
+# --- Embeddings + vector store ---
+sentence-transformers
+chromadb
+
+# --- Knowledge graph ---
+neo4j
+
+# --- Relational DB ---
+psycopg2-binary
+
+# --- LLM orchestration ---
+langchain
+langgraph
+langchain-groq
+
+# --- Dashboard ---
+streamlit
+
+# --- Utilities ---
+pandas
+networkx
+lxml
