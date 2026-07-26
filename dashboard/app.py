@@ -18,6 +18,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
+from neo4j.exceptions import SessionExpired, ServiceUnavailable
 from pyvis.network import Network
 import streamlit.components.v1 as components
 
@@ -46,13 +47,29 @@ def get_copilot_app():
     return build_graph()
 
 
+def run_query(driver, query, **params):
+    """
+    Runs a Cypher query, automatically reconnecting once if the cached
+    connection has gone stale (Neo4j Aura's free tier closes idle
+    connections after a while). This avoids crashing the dashboard just
+    because it sat open for a few minutes between uses.
+    """
+    try:
+        with driver.session() as session:
+            return list(session.run(query, **params))
+    except (SessionExpired, ServiceUnavailable):
+        st.cache_resource.clear()
+        fresh_driver = get_neo4j_driver()
+        with fresh_driver.session() as session:
+            return list(session.run(query, **params))
+
+
 # --- Data fetching functions ---
 
 def get_node_counts(driver):
     query = "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS count"
-    with driver.session() as session:
-        result = session.run(query)
-        return {row["label"]: row["count"] for row in result}
+    result = run_query(driver, query)
+    return {row["label"]: row["count"] for row in result}
 
 
 def get_top_drugs(driver, limit=10):
@@ -62,9 +79,8 @@ def get_top_drugs(driver, limit=10):
         ORDER BY mentions DESC
         LIMIT $limit
     """
-    with driver.session() as session:
-        result = session.run(query, limit=limit)
-        return {row["name"]: row["mentions"] for row in result}
+    result = run_query(driver, query, limit=limit)
+    return {row["name"]: row["mentions"] for row in result}
 
 
 def get_top_diseases(driver, limit=10):
@@ -74,9 +90,8 @@ def get_top_diseases(driver, limit=10):
         ORDER BY mentions DESC
         LIMIT $limit
     """
-    with driver.session() as session:
-        result = session.run(query, limit=limit)
-        return {row["name"]: row["mentions"] for row in result}
+    result = run_query(driver, query, limit=limit)
+    return {row["name"]: row["mentions"] for row in result}
 
 
 def build_graph_html(driver, limit=80):
@@ -97,28 +112,27 @@ def build_graph_html(driver, limit=80):
         "Organization": "#19d3f3",
     }
 
-    with driver.session() as session:
-        result = session.run(query, limit=limit)
-        seen_nodes = set()
+    result = run_query(driver, query, limit=limit)
+    seen_nodes = set()
 
-        for record in result:
-            for node_key in ("p", "x"):
-                node = record[node_key]
-                node_id = node.element_id
-                if node_id not in seen_nodes:
-                    label = list(node.labels)[0]
-                    name = node.get("title") or node.get("name") or "Unknown"
-                    display_name = (name[:40] + "...") if len(name) > 40 else name
-                    net.add_node(
-                        node_id,
-                        label=display_name,
-                        title=f"{label}: {name}",
-                        color=color_map.get(label, "#cccccc"),
-                    )
-                    seen_nodes.add(node_id)
+    for record in result:
+        for node_key in ("p", "x"):
+            node = record[node_key]
+            node_id = node.element_id
+            if node_id not in seen_nodes:
+                label = list(node.labels)[0]
+                name = node.get("title") or node.get("name") or "Unknown"
+                display_name = (name[:40] + "...") if len(name) > 40 else name
+                net.add_node(
+                    node_id,
+                    label=display_name,
+                    title=f"{label}: {name}",
+                    color=color_map.get(label, "#cccccc"),
+                )
+                seen_nodes.add(node_id)
 
-            rel = record["r"]
-            net.add_edge(rel.start_node.element_id, rel.end_node.element_id, title=rel.type)
+        rel = record["r"]
+        net.add_edge(rel.start_node.element_id, rel.end_node.element_id, title=rel.type)
 
     net.set_options("""
     var options = {
