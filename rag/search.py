@@ -20,12 +20,33 @@ VECTOR_STORE_DIR = "data/vector_store"
 COLLECTION_NAME = "research_papers"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
+# Module-level caches: loaded once, reused by every call. This matters a
+# lot once search() is called repeatedly by a running API server instead
+# of once per CLI invocation — reloading a model from disk on every
+# request would make the API needlessly slow.
+_model = None
+_chroma_client = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        _model = SentenceTransformer(EMBEDDING_MODEL)
+    return _model
+
+
+def get_chroma_client():
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_DIR)
+    return _chroma_client
+
 
 def search(query, top_k=5):
-    client = chromadb.PersistentClient(path=VECTOR_STORE_DIR)
+    client = get_chroma_client()
     collection = client.get_collection(COLLECTION_NAME)
 
-    model = SentenceTransformer(EMBEDDING_MODEL)
+    model = get_model()
     query_embedding = model.encode([query]).tolist()
 
     results = collection.query(

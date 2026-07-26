@@ -28,7 +28,12 @@ from dotenv import load_dotenv
 from groq import Groq
 from langgraph.graph import StateGraph, END
 
-# rag/ is a sibling folder, needs to be added to the path manually
+# Add this file's own directory AND the sibling rag/ folder to the path.
+# This makes the imports below work whether copilot.py is run directly
+# (python agents/copilot.py) OR imported by another script, like the
+# dashboard (from agents.copilot import build_graph) — the two situations
+# handle Python's default search path differently.
+sys.path.append(os.path.dirname(__file__))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
 from answer import answer_question # type: ignore
 from literature_review import generate_literature_review

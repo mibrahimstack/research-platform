@@ -3,6 +3,7 @@ fastapi
 uvicorn[standard]
 python-dotenv
 requests
+pydantic-settings
 
 # --- NLP / entity extraction ---
 spacy
@@ -21,9 +22,11 @@ psycopg2-binary
 langchain
 langgraph
 langchain-groq
+groq
 
 # --- Dashboard ---
 streamlit
+pyvis
 
 # --- Utilities ---
 pandas
