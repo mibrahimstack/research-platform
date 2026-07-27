@@ -60,6 +60,25 @@ class GraphStats(BaseModel):
     top_diseases: dict
 
 
+class QueryLogEntry(BaseModel):
+    """One row from the query audit log."""
+    created_at: str
+    endpoint: str
+    agent: Optional[str] = None
+    query: str
+    num_sources: Optional[int] = None
+    latency_ms: int
+    status: str
+
+
+class UsageStats(BaseModel):
+    """Aggregate usage analytics across all logged queries."""
+    total_queries: int
+    avg_latency_ms: float
+    queries_by_agent: dict
+    error_count: int
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str

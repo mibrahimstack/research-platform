@@ -19,19 +19,18 @@ from neo4j import GraphDatabase
 
 from api.config import settings
 from api.schemas import ErrorResponse
-from api.routers import health, search, qa, agents, copilot, graph
+from api.routers import health, search, qa, agents, copilot, graph, logs
 from agents.copilot import build_graph
+from db import postgres
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Runs once at startup and once at shutdown. Expensive, reusable
-    resources (the Neo4j connection, the compiled agent graph) are
-    created here ONCE and stored on app.state, rather than being
-    recreated on every single request — this is the difference between
-    an API that responds in milliseconds and one that re-does setup
-    work on every call.
+    resources (the Neo4j connection, the compiled agent graph, the
+    Postgres connection pool) are created here ONCE and stored on
+    app.state, rather than being recreated on every single request.
     """
     # Startup
     app.state.neo4j_driver = GraphDatabase.driver(
@@ -39,11 +38,13 @@ async def lifespan(app: FastAPI):
         auth=(settings.neo4j_username, settings.neo4j_password),
     )
     app.state.copilot_app = build_graph()
+    postgres.init_pool(settings.postgres_url)
 
     yield
 
     # Shutdown
     app.state.neo4j_driver.close()
+    postgres.close_pool()
 
 
 app = FastAPI(
@@ -83,6 +84,7 @@ app.include_router(qa.router)
 app.include_router(agents.router)
 app.include_router(copilot.router)
 app.include_router(graph.router)
+app.include_router(logs.router)
 
 
 @app.get("/", include_in_schema=False)
