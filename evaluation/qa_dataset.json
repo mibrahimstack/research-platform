@@ -1,0 +1,50 @@
+[
+  {
+    "id": "q1",
+    "question": "What effect does grapefruit juice have on drug metabolism?",
+    "expected_paper_keywords": ["Nutritional Counseling", "Drug-Food Interactions"],
+    "expected_facts": ["grapefruit", "CYP3A4", "inhibit"]
+  },
+  {
+    "id": "q2",
+    "question": "How does dietary vitamin K intake interact with warfarin therapy?",
+    "expected_paper_keywords": ["Nutritional Counseling", "Drug-Food Interactions"],
+    "expected_facts": ["vitamin K", "warfarin"]
+  },
+  {
+    "id": "q3",
+    "question": "How do GLP-1 receptor agonists affect gastric emptying and food absorption?",
+    "expected_paper_keywords": ["Nutritional Counseling", "Drug-Food Interactions"],
+    "expected_facts": ["gastric emptying", "GLP-1"]
+  },
+  {
+    "id": "q4",
+    "question": "What is the incidence rate of diabetic ketoacidosis among first-time SGLT2 inhibitor users?",
+    "expected_paper_keywords": ["GLP-1 Receptor Agonists and SGLT2 Inhibitors", "Type 1 Diabetes"],
+    "expected_facts": ["24.9", "1000 person-years", "ketoacidosis"]
+  },
+  {
+    "id": "q5",
+    "question": "Which antidiabetic drug classes are associated with increased fracture risk?",
+    "expected_paper_keywords": ["Polypharmacy and Bone Health"],
+    "expected_facts": ["thiazolidinedione", "sulfonylurea"]
+  },
+  {
+    "id": "q6",
+    "question": "Which antidiabetic medications appear neutral or protective for bone health?",
+    "expected_paper_keywords": ["Polypharmacy and Bone Health"],
+    "expected_facts": ["metformin", "SGLT2", "incretin"]
+  },
+  {
+    "id": "q7",
+    "question": "What was the study design used to assess drug-food interaction knowledge in the nutritional counseling study?",
+    "expected_paper_keywords": ["Nutritional Counseling", "Drug-Food Interactions"],
+    "expected_facts": ["cross-sectional", "questionnaire"]
+  },
+  {
+    "id": "q8",
+    "question": "How many adults with type 1 diabetes were included in the nationwide Swedish cohort study on GLP-1 and SGLT2 use?",
+    "expected_paper_keywords": ["GLP-1 Receptor Agonists and SGLT2 Inhibitors", "Type 1 Diabetes"],
+    "expected_facts": ["72,698", "Sweden"]
+  }
+]
