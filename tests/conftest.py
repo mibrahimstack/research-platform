@@ -23,12 +23,22 @@ def fixtures_dir() -> Path:
 def app_module(monkeypatch):
     import api.main as main_module
 
+    class DummySession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def run(self, *args, **kwargs):
+            return []
+
     class DummyDriver:
         def close(self):
             return None
 
         def session(self):
-            raise NotImplementedError("No real Neo4j session in tests")
+            return DummySession()
 
     def fake_driver(*args, **kwargs):
         return DummyDriver()
@@ -36,6 +46,10 @@ def app_module(monkeypatch):
     monkeypatch.setattr(main_module.GraphDatabase, "driver", fake_driver)
     monkeypatch.setattr(main_module.postgres, "init_pool", lambda *args, **kwargs: None)
     monkeypatch.setattr(main_module.postgres, "close_pool", lambda: None)
+
+    # Keep the app healthy in the default test fixture while still allowing
+    # the new health endpoint to report degraded when startup dependencies fail.
+    monkeypatch.setattr(main_module, "settings", type("Settings", (), {"neo4j_uri": "bolt://localhost:7687", "neo4j_username": "neo4j", "neo4j_password": "password", "postgres_url": "postgresql://user:pass@localhost:5432/db", "api_version": "0.1.0"})())
 
     class DummyCopilotApp:
         def invoke(self, payload):

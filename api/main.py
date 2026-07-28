@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from neo4j import GraphDatabase
+from neo4j.exceptions import ServiceUnavailable
 
 from api.config import settings
 from api.schemas import ErrorResponse
@@ -26,24 +27,35 @@ from db import postgres
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Runs once at startup and once at shutdown. Expensive, reusable
-    resources (the Neo4j connection, the compiled agent graph, the
-    Postgres connection pool) are created here ONCE and stored on
-    app.state, rather than being recreated on every single request.
-    """
-    # Startup
-    app.state.neo4j_driver = GraphDatabase.driver(
-        settings.neo4j_uri,
-        auth=(settings.neo4j_username, settings.neo4j_password),
-    )
-    app.state.copilot_app = build_graph()
-    postgres.init_pool(settings.postgres_url)
+    """Initialize optional services without crashing app startup when they are unavailable."""
+    app.state.neo4j_driver = None
+    app.state.copilot_app = None
+    app.state.startup_errors = []
+
+    try:
+        app.state.neo4j_driver = GraphDatabase.driver(
+            settings.neo4j_uri,
+            auth=(settings.neo4j_username, settings.neo4j_password),
+        )
+        with app.state.neo4j_driver.session() as session:
+            session.run("RETURN 1")
+    except Exception as exc:
+        app.state.startup_errors.append(f"neo4j: {exc}")
+
+    try:
+        app.state.copilot_app = build_graph()
+    except Exception as exc:
+        app.state.startup_errors.append(f"copilot: {exc}")
+
+    try:
+        postgres.init_pool(settings.postgres_url)
+    except Exception as exc:
+        app.state.startup_errors.append(f"postgres: {exc}")
 
     yield
 
-    # Shutdown
-    app.state.neo4j_driver.close()
+    if app.state.neo4j_driver is not None:
+        app.state.neo4j_driver.close()
     postgres.close_pool()
 
 

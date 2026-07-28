@@ -28,6 +28,12 @@ class Settings(BaseSettings):
         "semantic search, and multi-agent research assistance."
     )
 
+    # Runtime profile for local dev vs container/server deployment.
+    environment: str = "development"
+    host: str = "127.0.0.1"
+    port: int = 8000
+    dashboard_port: int = 8501
+
     # CORS — which origins are allowed to call this API from a browser.
     # "*" is convenient for development; tighten this before any real
     # public deployment.

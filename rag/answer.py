@@ -59,6 +59,16 @@ def build_explained_answer(answer_text, results):
     )
 
 
+def split_answer_sections(answer_text):
+    """Split an explained answer into its main body and source list."""
+    if "Sources used:" not in answer_text:
+        return answer_text.strip(), []
+
+    body, sources_section = answer_text.split("Sources used:", 1)
+    sources = [line.strip() for line in sources_section.splitlines() if line.strip()]
+    return body.strip(), sources
+
+
 def answer_question(question, top_k=5):
     # Step 1: retrieve relevant chunks
     results = search(question, top_k=top_k)

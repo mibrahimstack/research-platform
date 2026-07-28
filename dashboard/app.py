@@ -26,6 +26,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "agents"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
 from agents.copilot import build_graph
+from rag.answer import split_answer_sections
 
 load_dotenv()
 
@@ -208,5 +209,13 @@ if st.button("Ask") and question:
 for entry in reversed(st.session_state.chat_history):
     st.markdown(f"**Q: {entry['question']}**")
     st.caption(f"Routed to: `{entry['route']}`")
-    st.markdown(entry["answer"])
+
+    body, sources = split_answer_sections(entry["answer"])
+    st.markdown(body)
+
+    if sources:
+        with st.expander("Sources used"):
+            for source in sources:
+                st.write(f"- {source}")
+
     st.divider()
