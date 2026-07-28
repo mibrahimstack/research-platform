@@ -36,6 +36,10 @@ def close_pool():
 @contextmanager
 def get_connection():
     """Borrows a connection from the pool, always returns it when done."""
+    if _connection_pool is None:
+        yield None
+        return
+
     conn = _connection_pool.getconn()
     try:
         yield conn
@@ -45,6 +49,8 @@ def get_connection():
 
 def _create_table_if_missing():
     with get_connection() as conn:
+        if conn is None:
+            return
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS query_logs (
@@ -75,6 +81,8 @@ def log_query(
 ):
     """Inserts one log row. Called after every request completes (or fails)."""
     with get_connection() as conn:
+        if conn is None:
+            return
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -99,6 +107,8 @@ class Timer:
 
 def get_recent_logs(limit: int = 50):
     with get_connection() as conn:
+        if conn is None:
+            return []
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -115,6 +125,13 @@ def get_recent_logs(limit: int = 50):
 
 def get_usage_stats():
     with get_connection() as conn:
+        if conn is None:
+            return {
+                "total_queries": 0,
+                "avg_latency_ms": 0,
+                "queries_by_agent": {},
+                "error_count": 0,
+            }
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM query_logs")
             total_queries = cur.fetchone()[0]

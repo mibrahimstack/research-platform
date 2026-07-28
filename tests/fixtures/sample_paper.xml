@@ -1,0 +1,23 @@
+<article>
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>Sample Paper</article-title>
+      </title-group>
+      <abstract>
+        <p>This paper studies a new treatment for diabetes and summarizes early findings.</p>
+      </abstract>
+    </article-meta>
+  </front>
+  <body>
+    <sec>
+      <title>Introduction</title>
+      <p>This section introduces the problem and states that the treatment may improve outcomes.</p>
+      <p>Further details explain the study setting and the patient group.</p>
+    </sec>
+    <sec>
+      <title>Methods</title>
+      <p>The authors compared two groups over twelve weeks.</p>
+    </sec>
+  </body>
+</article>
