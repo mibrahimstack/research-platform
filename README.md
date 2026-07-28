@@ -24,17 +24,20 @@ pip install -r requirements.txt
 You need three free accounts. Do all three before writing code.
 
 ### Neo4j AuraDB (knowledge graph)
+
 1. Go to https://neo4j.com/cloud/aura-free/ and sign up
 2. Create a new free instance
 3. Save the generated password immediately — it's shown only once
 4. Copy the connection URI (starts with `neo4j+s://`)
 
 ### Postgres — Neon or Supabase (relational data)
+
 1. Go to https://neon.tech or https://supabase.com and sign up
 2. Create a new project/database
 3. Copy the connection string (starts with `postgresql://`)
 
 ### Groq (LLM API)
+
 1. Go to https://console.groq.com/keys and sign up
 2. Generate an API key
 
@@ -154,17 +157,17 @@ Knowledge Graph      Vector Store (ChromaDB)
 
 ## Tech Stack
 
-| Layer | Tool | Why |
-|---|---|---|
-| Backend / scripting | Python | Core language throughout |
-| Knowledge Graph | Neo4j AuraDB (free tier) | Cloud-hosted, no local install needed |
-| Relational DB | Neon Postgres (free tier) | Cloud-hosted metadata storage |
-| Vector Store | ChromaDB | Local, lightweight semantic search index |
-| Embeddings | Sentence Transformers (`all-MiniLM-L6-v2`) | Free, pretrained, runs on CPU |
-| LLM | Groq API (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`) | Free tier, fast inference |
-| Agent Orchestration | LangGraph | Real multi-agent routing, not just if/else logic |
-| Dashboard | Streamlit + pyvis | Fast to build, interactive graph visualization |
-| NLP | Groq LLM-based extraction | Chosen over scispaCy to avoid large local model downloads on constrained hardware |
+| Layer               | Tool                                                         | Why                                                                               |
+| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Backend / scripting | Python                                                       | Core language throughout                                                          |
+| Knowledge Graph     | Neo4j AuraDB (free tier)                                     | Cloud-hosted, no local install needed                                             |
+| Relational DB       | Neon Postgres (free tier)                                    | Cloud-hosted metadata storage                                                     |
+| Vector Store        | ChromaDB                                                     | Local, lightweight semantic search index                                          |
+| Embeddings          | Sentence Transformers (`all-MiniLM-L6-v2`)                   | Free, pretrained, runs on CPU                                                     |
+| LLM                 | Groq API (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`) | Free tier, fast inference                                                         |
+| Agent Orchestration | LangGraph                                                    | Real multi-agent routing, not just if/else logic                                  |
+| Dashboard           | Streamlit + pyvis                                            | Fast to build, interactive graph visualization                                    |
+| NLP                 | Groq LLM-based extraction                                    | Chosen over scispaCy to avoid large local model downloads on constrained hardware |
 
 ### Design Decisions Worth Noting
 
@@ -208,9 +211,11 @@ research-platform/
 ## Setup & Deployment Guide
 
 ### 1. Prerequisites
+
 Python 3.10+, Git, and free accounts for Neo4j AuraDB, Neon (Postgres), and Groq.
 
 ### 2. Environment setup
+
 ```bash
 python -m venv venv
 # Windows:
@@ -224,12 +229,15 @@ cp .env.example .env
 ```
 
 ### 3. Verify setup
+
 ```bash
 python test_connections.py
 ```
+
 All three services should show `[PASS]` before continuing.
 
 ### 4. Build the pipeline, in order
+
 ```bash
 python fetch_papers.py                    # download papers
 python ingestion/batch_ingest.py          # parse and chunk them
@@ -239,6 +247,7 @@ python knowledge_graph/build_graph.py     # build the Neo4j knowledge graph
 ```
 
 ### 5. Try each capability
+
 ```bash
 python rag/search.py "your question"
 python rag/answer.py "your question"
@@ -249,8 +258,31 @@ python agents/copilot.py "your question"   # auto-routes to the right one above
 ```
 
 ### 6. Run the dashboard
+
 ```bash
 streamlit run dashboard/app.py
+```
+
+### 7. Run everything together
+
+```bash
+python run_services.py
+```
+
+## Quick Commands for Contributors
+
+```bash
+# Run the full test suite
+python -m pytest -q
+
+# Start the API locally
+uvicorn api.main:app --host 127.0.0.1 --port 8000
+
+# Start the dashboard locally
+streamlit run dashboard/app.py
+
+# Start both together
+python run_services.py
 ```
 
 ---
