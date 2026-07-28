@@ -29,10 +29,7 @@ LLM_MODEL = "llama-3.1-8b-instant"  # fast, free-tier friendly Groq model
 
 
 def build_context(results):
-    """
-    Turns the raw search results into a clearly labeled block of text
-    the LLM can read, so it knows which chunk came from which paper.
-    """
+    """Turns the raw search results into a clearly labeled block of text."""
     documents = results["documents"][0]
     metadatas = results["metadatas"][0]
 
@@ -47,6 +44,21 @@ def build_context(results):
     return "\n\n".join(context_blocks)
 
 
+def build_explained_answer(answer_text, results):
+    """Wrap the raw answer with a concise source-backed summary."""
+    metadatas = results["metadatas"][0]
+
+    source_summary = []
+    for i, meta in enumerate(metadatas, 1):
+        source_summary.append(f"[{i}] {meta['paper_title']} ({meta['section']})")
+
+    evidence_block = "\n".join(source_summary)
+    return (
+        f"{answer_text}\n\n"
+        f"Sources used:\n{evidence_block}"
+    )
+
+
 def answer_question(question, top_k=5):
     # Step 1: retrieve relevant chunks
     results = search(question, top_k=top_k)
@@ -59,8 +71,9 @@ def answer_question(question, top_k=5):
         "You are a research assistant. Answer the user's question using ONLY "
         "the information in the provided sources below. If the sources don't "
         "contain enough information to answer, say so clearly — do not use "
-        "outside knowledge. After your answer, list which source numbers you "
-        "used, like: Sources used: [1, 3]."
+        "outside knowledge. Structure your answer in two parts: "
+        "1. A short answer paragraph. 2. A 'Sources used' section listing the "
+        "source numbers you relied on. Keep the answer concise and evidence-based."
     )
 
     user_prompt = f"Sources:\n\n{context}\n\nQuestion: {question}"
@@ -74,7 +87,9 @@ def answer_question(question, top_k=5):
         temperature=0.2,  # low temperature = more grounded, less creative
     )
 
-    return response.choices[0].message.content, results
+    raw_answer = response.choices[0].message.content
+    explained_answer = build_explained_answer(raw_answer, results)
+    return explained_answer, results
 
 
 def main():

@@ -13,7 +13,34 @@ anything else:
 
 import sys
 import re
+from pathlib import Path
+
 from lxml import etree
+
+try:
+    from docx import Document as DocxDocument
+except ImportError:  # pragma: no cover - optional dependency in some environments
+    DocxDocument = None
+
+try:
+    from pypdf import PdfReader
+except ImportError:  # pragma: no cover - optional dependency in some environments
+    PdfReader = None
+
+
+def parse_paper_file(filepath):
+    """Parse a paper from XML, DOCX, or PDF input."""
+    path = Path(filepath)
+    suffix = path.suffix.lower()
+
+    if suffix == ".xml":
+        return parse_paper_xml(path)
+    if suffix == ".docx":
+        return parse_docx(path)
+    if suffix == ".pdf":
+        return parse_pdf(path)
+
+    raise ValueError(f"Unsupported paper format: {suffix}")
 
 
 def parse_paper_xml(filepath):
@@ -54,6 +81,54 @@ def parse_paper_xml(filepath):
                 sections.append({"heading": heading, "text": text})
 
     return {"title": title, "abstract": abstract, "sections": sections}
+
+
+def parse_docx(filepath):
+    """Extract text from a DOCX file into a simple paper structure."""
+    if DocxDocument is None:
+        raise ImportError("python-docx is required for DOCX ingestion")
+
+    document = DocxDocument(filepath)
+    paragraphs = [p.text.strip() for p in document.paragraphs if p.text and p.text.strip()]
+
+    heading = None
+    for paragraph in paragraphs:
+        if paragraph.lower().startswith("heading"):
+            continue
+        if paragraph and len(paragraph.split()) <= 12:
+            heading = paragraph
+            break
+
+    title = heading or (paragraphs[0] if paragraphs else "Untitled")
+    text = " ".join(paragraphs)
+
+    sections = []
+    if text:
+        sections.append({"heading": "Body", "text": clean_whitespace(text)})
+
+    return {"title": title, "abstract": "", "sections": sections}
+
+
+def parse_pdf(filepath):
+    """Extract text from a PDF file into a simple paper structure."""
+    if PdfReader is None:
+        raise ImportError("pypdf is required for PDF ingestion")
+
+    reader = PdfReader(str(filepath))
+    pages = [page.extract_text() or "" for page in reader.pages]
+    text = "\n".join(page for page in pages if page).strip()
+
+    title = "Untitled"
+    if text:
+        first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+        if first_line:
+            title = first_line
+
+    sections = []
+    if text:
+        sections.append({"heading": "Body", "text": clean_whitespace(text)})
+
+    return {"title": title, "abstract": "", "sections": sections}
 
 
 def clean_whitespace(text):
@@ -108,7 +183,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     filepath = sys.argv[1]
-    parsed = parse_paper_xml(filepath)
+    parsed = parse_paper_file(filepath)
 
     print(f"Title: {parsed['title']}\n")
     print(f"Abstract ({len(parsed['abstract'].split())} words):")

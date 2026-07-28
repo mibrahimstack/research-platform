@@ -32,3 +32,5 @@ pyvis
 pandas
 networkx
 lxml
+python-docx
+pypdf

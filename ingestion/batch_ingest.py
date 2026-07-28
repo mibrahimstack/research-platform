@@ -19,7 +19,7 @@ import glob
 # Handle being run as a script (not a package import)
 import sys
 sys.path.append(os.path.dirname(__file__))
-from parse_paper import parse_paper_xml, paper_to_chunks
+from parse_paper import parse_paper_file, paper_to_chunks
 
 PAPERS_DIR = "data/papers"
 OUTPUT_DIR = "data/processed"
@@ -40,7 +40,7 @@ def main():
             paper_id = os.path.splitext(os.path.basename(filepath))[0]  # e.g. "PMC12987031"
 
             try:
-                parsed = parse_paper_xml(filepath)
+                parsed = parse_paper_file(filepath)
                 chunks = paper_to_chunks(parsed)
 
                 for chunk_index, chunk in enumerate(chunks):
