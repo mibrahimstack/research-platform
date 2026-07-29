@@ -82,6 +82,7 @@ class UsageStats(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     version: str
+    components: dict = {}
 
 
 class ErrorResponse(BaseModel):

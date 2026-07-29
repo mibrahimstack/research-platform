@@ -15,6 +15,7 @@ Run from the project root:
 
 import sys
 import os
+import requests
 import streamlit as st
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
@@ -95,6 +96,18 @@ def get_top_diseases(driver, limit=10):
     return {row["name"]: row["mentions"] for row in result}
 
 
+def get_backend_status():
+    """Fetch the API health endpoint and return a short status label."""
+    try:
+        response = requests.get("http://127.0.0.1:8000/health", timeout=2)
+        if response.ok:
+            payload = response.json()
+            return payload.get("status", "unknown"), payload.get("components", {})
+    except requests.RequestException:
+        return "unavailable", {}
+    return "unavailable", {}
+
+
 def build_graph_html(driver, limit=80):
     """Fetches a sample of the graph and renders it as an interactive pyvis HTML graph."""
     query = """
@@ -149,6 +162,25 @@ def build_graph_html(driver, limit=80):
 st.title("🔬 Enterprise AI Research & Knowledge Discovery Platform")
 st.caption("Ezitech Internship Case Study AI-003")
 
+backend_status, health_components = get_backend_status()
+status_color = "green" if backend_status == "ok" else "orange" if backend_status == "degraded" else "red"
+st.markdown(
+    f"<div style='padding:0.75rem 0.9rem; border-radius:0.5rem; background-color:{status_color}; color:white; margin-bottom:1rem;'>"
+    f"Backend status: <strong>{backend_status}</strong></div>",
+    unsafe_allow_html=True,
+)
+
+if health_components:
+    st.caption("Service breakdown")
+    status_columns = st.columns(len(health_components))
+    for col, (name, info) in zip(status_columns, health_components.items()):
+        component_color = "green" if info.get("status") == "ok" else "orange" if info.get("status") == "degraded" else "red"
+        col.markdown(
+            f"<div style='padding:0.45rem 0.6rem; border-radius:0.4rem; background-color:{component_color}; color:white; text-align:center;'>"
+            f"{name.upper()}<br><small>{info.get('status', 'unknown')}</small></div>",
+            unsafe_allow_html=True,
+        )
+
 driver = get_neo4j_driver()
 
 # --- Section 1: Overview stats ---
@@ -200,11 +232,20 @@ question = st.text_input("Your question:", placeholder="e.g. summarize research 
 
 if st.button("Ask") and question:
     with st.spinner("Routing and generating answer..."):
-        app = get_copilot_app()
-        result = app.invoke({"question": question, "route": "", "answer": ""})
-        st.session_state.chat_history.append(
-            {"question": question, "route": result["route"], "answer": result["answer"]}
-        )
+        try:
+            app = get_copilot_app()
+            result = app.invoke({"question": question, "route": "", "answer": ""})
+            st.session_state.chat_history.append(
+                {"question": question, "route": result["route"], "answer": result["answer"]}
+            )
+        except Exception as exc:
+            st.session_state.chat_history.append(
+                {
+                    "question": question,
+                    "route": "error",
+                    "answer": f"The answer service is currently unavailable. Please check the backend configuration. Details: {exc}",
+                }
+            )
 
 for entry in reversed(st.session_state.chat_history):
     st.markdown(f"**Q: {entry['question']}**")

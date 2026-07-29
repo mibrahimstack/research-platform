@@ -285,6 +285,18 @@ streamlit run dashboard/app.py
 python run_services.py
 ```
 
+## Local Smoke Test
+
+After the API is running, you can verify the answer flow with a simple request:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/answer" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "what is the answer?", "top_k": 2}'
+```
+
+You should receive a JSON response containing an `answer` field and a `sources` list.
+
 ---
 
 ## Known Limitations
