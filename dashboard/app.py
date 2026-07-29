@@ -159,11 +159,25 @@ def build_graph_html(driver, limit=80):
 
 # --- UI ---
 
-st.title("🔬 Enterprise AI Research & Knowledge Discovery Platform")
-st.caption("Ezitech Internship Case Study AI-003")
+if "refresh_counter" not in st.session_state:
+    st.session_state.refresh_counter = 0
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = 0
+
+col_title, col_refresh = st.columns([6, 1])
+with col_title:
+    st.title("🔬 Enterprise AI Research & Knowledge Discovery Platform")
+    st.caption("Ezitech Internship Case Study AI-003")
+with col_refresh:
+    if st.button("Refresh"):
+        st.session_state.refresh_counter += 1
 
 backend_status, health_components = get_backend_status()
 status_color = "green" if backend_status == "ok" else "orange" if backend_status == "degraded" else "red"
+
+if st.session_state.refresh_counter > 0:
+    st.caption("Status refreshed")
+
 st.markdown(
     f"<div style='padding:0.75rem 0.9rem; border-radius:0.5rem; background-color:{status_color}; color:white; margin-bottom:1rem;'>"
     f"Backend status: <strong>{backend_status}</strong></div>",
@@ -175,11 +189,23 @@ if health_components:
     status_columns = st.columns(len(health_components))
     for col, (name, info) in zip(status_columns, health_components.items()):
         component_color = "green" if info.get("status") == "ok" else "orange" if info.get("status") == "degraded" else "red"
+        detail = info.get("detail", "No details available")
         col.markdown(
             f"<div style='padding:0.45rem 0.6rem; border-radius:0.4rem; background-color:{component_color}; color:white; text-align:center;'>"
-            f"{name.upper()}<br><small>{info.get('status', 'unknown')}</small></div>",
+            f"{name.upper()}<br><small>{info.get('status', 'unknown')}</small><br><span style='font-size:0.75rem;'>{detail}</span></div>",
             unsafe_allow_html=True,
         )
+
+if st.session_state.refresh_counter == 0:
+    st.session_state.last_refresh = 0
+
+if st.session_state.refresh_counter > 0 and st.session_state.last_refresh == 0:
+    st.session_state.last_refresh = 1
+
+if st.session_state.last_refresh == 0:
+    st.rerun = getattr(st, "rerun", None)
+    if st.rerun is not None:
+        st.rerun()
 
 driver = get_neo4j_driver()
 

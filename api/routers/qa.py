@@ -11,6 +11,13 @@ from api.schemas import QueryRequest, AnswerResponse, SourceChunk
 from rag.answer import answer_question
 from db.postgres import log_query, Timer
 
+
+def _build_fallback_answer(query: str) -> str:
+    return (
+        "I couldn't generate a live answer right now because the backend answer service is unavailable. "
+        f"Please try again shortly or re-check the service configuration for your query: {query}"
+    )
+
 router = APIRouter(prefix="/api/v1", tags=["Question Answering"])
 
 
@@ -21,13 +28,12 @@ def answer(request: QueryRequest, http_request: Request):
             answer_text, results = answer_question(request.query, top_k=request.top_k)
         except Exception as e:
             log_query("/api/v1/answer", request.query, 0, status="error", error_detail=str(e))
-            startup_errors = getattr(http_request.app.state, "startup_errors", [])
-            if startup_errors:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Answer generation is unavailable because one or more backend services failed to initialize.",
-                )
-            raise HTTPException(status_code=500, detail=f"Failed to generate answer: {e}")
+            fallback_answer = _build_fallback_answer(request.query)
+            return AnswerResponse(
+                query=request.query,
+                answer=fallback_answer,
+                sources=[],
+            )
 
     documents = results["documents"][0]
     metadatas = results["metadatas"][0]

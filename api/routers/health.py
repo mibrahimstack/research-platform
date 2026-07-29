@@ -18,18 +18,18 @@ def health_check(request: Request):
     app_state = request.app.state
     startup_errors = getattr(app_state, "startup_errors", None) or []
     components = {
-        "api": {"status": "ok"},
-        "neo4j": {"status": "ok"},
-        "copilot": {"status": "ok"},
-        "postgres": {"status": "ok"},
+        "api": {"status": "ok", "detail": "API is serving requests."},
+        "neo4j": {"status": "ok", "detail": "Knowledge graph is reachable."},
+        "copilot": {"status": "ok", "detail": "Routing and answer generation are ready."},
+        "postgres": {"status": "ok", "detail": "Query logging is available."},
     }
 
     if startup_errors:
         for error in startup_errors:
-            service_name, _ = error.split(":", 1)
+            service_name, detail = error.split(":", 1)
             if service_name in components:
                 components[service_name]["status"] = "degraded"
-                components[service_name]["detail"] = error.split(":", 1)[1].strip()
+                components[service_name]["detail"] = detail.strip()
 
     if any(component.get("status") == "degraded" for component in components.values()):
         return HealthResponse(status="degraded", version=settings.api_version, components=components)
