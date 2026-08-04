@@ -60,7 +60,45 @@ You should see `[PASS]` for all three services. If something fails,
 re-check the value in `.env` before doing anything else — don't move
 on to writing project code until this passes.
 
-## 6. Get your dataset
+## 6. Run locally with Docker Compose
+
+If you want a reproducible local development environment, use Docker Compose.
+This starts the API, dashboard, Postgres, and Neo4j together in containers.
+
+1. Copy the provided environment template:
+
+```bash
+cp .env.example .env
+```
+
+2. Update `.env` for local Docker if you want to use the included services:
+
+```text
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=test
+POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/research
+GROQ_API_KEY=your_groq_key_here
+```
+
+3. Start the stack:
+
+```bash
+docker compose up --build
+```
+
+4. Open the services:
+
+- API: http://127.0.0.1:8000/docs
+- Dashboard: http://127.0.0.1:8501
+
+5. Stop the stack with:
+
+```bash
+docker compose down
+```
+
+## 7. Get your dataset
 
 Use the `fetch_papers.py` script (from the earlier step) to download
 your topic's papers into `data/papers/`.

@@ -9,10 +9,20 @@ share a common response shape and logging pattern.
 
 from fastapi import APIRouter, HTTPException
 from api.schemas import QueryRequest, ReportResponse
-from agents.literature_review import generate_literature_review
-from agents.contradiction_detection import detect_contradictions
-from agents.hypothesis_generator import generate_hypotheses
 from db.postgres import log_query, Timer
+
+
+def _load_agent(name: str):
+    if name == "literature_review":
+        from agents.literature_review import generate_literature_review
+        return generate_literature_review
+    if name == "contradiction":
+        from agents.contradiction_detection import detect_contradictions
+        return detect_contradictions
+    if name == "hypothesis":
+        from agents.hypothesis_generator import generate_hypotheses
+        return generate_hypotheses
+    raise ValueError(f"Unknown agent: {name}")
 
 router = APIRouter(prefix="/api/v1", tags=["Research Agents"])
 
@@ -31,7 +41,8 @@ def _build_report_response(query: str, report_text: str, selected_chunks) -> Rep
 def literature_review(request: QueryRequest):
     with Timer() as t:
         try:
-            report_text, selected_chunks = generate_literature_review(request.query)
+            generator = _load_agent("literature_review")
+            report_text, selected_chunks = generator(request.query)
         except Exception as e:
             log_query("/api/v1/literature-review", request.query, 0, status="error",
                       agent="literature_review", error_detail=str(e))
@@ -49,7 +60,8 @@ def literature_review(request: QueryRequest):
 def contradiction_detection(request: QueryRequest):
     with Timer() as t:
         try:
-            report_text, selected_chunks = detect_contradictions(request.query)
+            generator = _load_agent("contradiction")
+            report_text, selected_chunks = generator(request.query)
         except Exception as e:
             log_query("/api/v1/contradiction-detection", request.query, 0, status="error",
                       agent="contradiction", error_detail=str(e))
@@ -67,7 +79,8 @@ def contradiction_detection(request: QueryRequest):
 def hypothesis_generation(request: QueryRequest):
     with Timer() as t:
         try:
-            report_text, selected_chunks = generate_hypotheses(request.query)
+            generator = _load_agent("hypothesis")
+            report_text, selected_chunks = generator(request.query)
         except Exception as e:
             log_query("/api/v1/hypothesis-generation", request.query, 0, status="error",
                       agent="hypothesis", error_detail=str(e))

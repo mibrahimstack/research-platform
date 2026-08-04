@@ -13,8 +13,16 @@ Example:
 """
 
 import sys
-import chromadb
-from sentence_transformers import SentenceTransformer
+
+try:
+    import chromadb
+except Exception:  # pragma: no cover - exercised when optional deps are missing or broken
+    chromadb = None
+
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:  # pragma: no cover - exercised when optional deps are missing or broken
+    SentenceTransformer = None
 
 VECTOR_STORE_DIR = "data/vector_store"
 COLLECTION_NAME = "research_papers"
@@ -31,6 +39,10 @@ _chroma_client = None
 def get_model():
     global _model
     if _model is None:
+        if SentenceTransformer is None:
+            raise ImportError(
+                "sentence-transformers is required for semantic search; install the ML dependencies"
+            )
         _model = SentenceTransformer(EMBEDDING_MODEL)
     return _model
 
@@ -38,6 +50,10 @@ def get_model():
 def get_chroma_client():
     global _chroma_client
     if _chroma_client is None:
+        if chromadb is None:
+            raise ImportError(
+                "chromadb is required for semantic search; install the ML dependencies"
+            )
         _chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_DIR)
     return _chroma_client
 

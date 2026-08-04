@@ -1,0 +1,14 @@
+# Heavy ML and vector/embedding packages (install only when needed)
+--extra-index-url https://download.pytorch.org/whl/cpu
+sentence-transformers
+chromadb
+transformers
+torch
+onnxruntime
+pyarrow
+safetensors
+triton
+scikit-learn
+scipy
+huggingface_hub
+tokenizers

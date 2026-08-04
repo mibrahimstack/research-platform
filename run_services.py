@@ -9,6 +9,12 @@ from api.config import settings
 
 def main():
     print("Starting API and dashboard...")
+    api_base_url = f"http://{settings.host}:{settings.port}"
+    api_env = os.environ.copy()
+    api_env.setdefault("API_HOST", settings.host)
+    api_env.setdefault("API_PORT", str(settings.port))
+    api_env.setdefault("API_BASE_URL", api_base_url)
+
     api_cmd = [
         sys.executable,
         "-m",
@@ -31,8 +37,8 @@ def main():
         settings.host,
     ]
 
-    api_process = subprocess.Popen(api_cmd)
-    dashboard_process = subprocess.Popen(dashboard_cmd)
+    api_process = subprocess.Popen(api_cmd, env=api_env)
+    dashboard_process = subprocess.Popen(dashboard_cmd, env={**api_env, "API_BASE_URL": api_base_url})
 
     try:
         api_process.wait()

@@ -1,0 +1,30 @@
+# Core runtime requirements (keeps image small for smoke tests)
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+pydantic-settings
+
+# Knowledge graph + DB
+neo4j
+psycopg2-binary
+
+# LLM orchestration (lightweight core pieces)
+langchain
+langgraph
+langchain-groq
+groq
+
+# Dashboard (move to core so the dashboard can run)
+streamlit
+pyvis
+
+# Utilities
+pandas
+networkx
+lxml
+python-docx
+pypdf
+
+# NLP/Entity extraction (pure-Python install; heavier ML deps are optional)
+spacy

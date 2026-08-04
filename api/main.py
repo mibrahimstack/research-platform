@@ -16,13 +16,19 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from neo4j import GraphDatabase
-from neo4j.exceptions import ServiceUnavailable
 
 from api.config import settings
 from api.schemas import ErrorResponse
 from api.routers import health, search, qa, agents, copilot, graph, logs
-from agents.copilot import build_graph
 from db import postgres
+
+try:
+    from agents.copilot import build_graph as _build_graph
+except Exception:  # pragma: no cover - optional dependency guard
+    def _build_graph():
+        raise RuntimeError("Copilot dependencies are unavailable")
+
+build_graph = _build_graph
 
 
 @asynccontextmanager
@@ -43,6 +49,8 @@ async def lifespan(app: FastAPI):
         app.state.startup_errors.append(f"neo4j: {exc}")
 
     try:
+        from agents.copilot import build_graph
+
         app.state.copilot_app = build_graph()
     except Exception as exc:
         app.state.startup_errors.append(f"copilot: {exc}")
@@ -54,9 +62,16 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    if app.state.neo4j_driver is not None:
-        app.state.neo4j_driver.close()
-    postgres.close_pool()
+    try:
+        if app.state.neo4j_driver is not None:
+            app.state.neo4j_driver.close()
+    except Exception:
+        pass
+
+    try:
+        postgres.close_pool()
+    except Exception:
+        pass
 
 
 app = FastAPI(

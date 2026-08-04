@@ -26,10 +26,24 @@ import streamlit.components.v1 as components
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "agents"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
-from agents.copilot import build_graph
-from rag.answer import split_answer_sections
+try:
+    from agents.copilot import build_graph
+except Exception:  # pragma: no cover - optional dependency guard
+    build_graph = None
+
+try:
+    from rag.answer import split_answer_sections
+except Exception:  # pragma: no cover - optional dependency guard
+    split_answer_sections = None
 
 load_dotenv()
+
+def get_api_base_url():
+    return (
+        os.getenv("API_BASE_URL")
+        or os.getenv("API_URL")
+        or f"http://{os.getenv('API_HOST', '127.0.0.1')}:{os.getenv('API_PORT', '8000')}"
+    )
 
 st.set_page_config(page_title="Research Intelligence Dashboard", layout="wide")
 
@@ -46,6 +60,8 @@ def get_neo4j_driver():
 
 @st.cache_resource
 def get_copilot_app():
+    if build_graph is None:
+        return None
     return build_graph()
 
 
@@ -98,8 +114,10 @@ def get_top_diseases(driver, limit=10):
 
 def get_backend_status():
     """Fetch the API health endpoint and return a short status label."""
+    api_base_url = get_api_base_url()
+    health_url = f"{api_base_url.rstrip('/')}/health"
     try:
-        response = requests.get("http://127.0.0.1:8000/health", timeout=2)
+        response = requests.get(health_url, timeout=2)
         if response.ok:
             payload = response.json()
             return payload.get("status", "unknown"), payload.get("components", {})
