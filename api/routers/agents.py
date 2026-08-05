@@ -7,7 +7,7 @@ detection, and hypothesis generation. Each follows the same pattern
 share a common response shape and logging pattern.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException # type:ignore
 from api.schemas import QueryRequest, ReportResponse
 from db.postgres import log_query, Timer
 

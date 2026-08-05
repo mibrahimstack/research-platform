@@ -6,8 +6,8 @@ top-mentioned entities. Uses the shared Neo4j driver injected via
 dependencies.py rather than opening a new connection per request.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from neo4j import Driver
+from fastapi import APIRouter, Depends, HTTPException # type:ignore
+from neo4j import Driver # type:ignore
 from api.dependencies import get_neo4j_driver, run_cypher
 from api.schemas import GraphStats
 

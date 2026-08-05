@@ -7,7 +7,7 @@ retrieval (e.g. a UI autocomplete, or debugging what the RAG pipeline
 would see before generation).
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException # type:ignore
 from api.schemas import QueryRequest, SourceChunk
 from rag.search import search as run_search
 

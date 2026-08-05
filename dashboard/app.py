@@ -15,13 +15,13 @@ Run from the project root:
 
 import sys
 import os
-import requests
-import streamlit as st
-from dotenv import load_dotenv
-from neo4j import GraphDatabase
-from neo4j.exceptions import SessionExpired, ServiceUnavailable
-from pyvis.network import Network
-import streamlit.components.v1 as components
+import requests # type:ignore
+import streamlit as st # type:ignore
+from dotenv import load_dotenv # type:ignore
+from neo4j import GraphDatabase # type:ignore
+from neo4j.exceptions import SessionExpired, ServiceUnavailable # type:ignore
+from pyvis.network import Network # type:ignore
+import streamlit.components.v1 as components # type:ignore
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "agents"))

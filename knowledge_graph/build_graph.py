@@ -14,8 +14,8 @@ Run from the project root:
 
 import json
 import os
-from dotenv import load_dotenv
-from neo4j import GraphDatabase
+from dotenv import load_dotenv # type:ignore
+from neo4j import GraphDatabase # type:ignore
 
 load_dotenv()
 

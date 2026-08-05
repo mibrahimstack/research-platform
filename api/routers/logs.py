@@ -7,7 +7,7 @@ into something you can actually show — a real analytics endpoint an
 evaluator can query live.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query # type:ignore
 from api.schemas import QueryLogEntry, UsageStats
 from db.postgres import get_recent_logs, get_usage_stats
 

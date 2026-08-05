@@ -8,7 +8,7 @@ the caller having to know which endpoint to call. Every request is
 logged with the agent the router actually selected.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request# type:ignore
 from api.schemas import QueryRequest, CopilotResponse
 from db.postgres import log_query, Timer
 

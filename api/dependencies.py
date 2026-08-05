@@ -7,9 +7,9 @@ lifespan handler) and reused across every request, rather than opening
 a new connection per call.
 """
 
-from fastapi import Request
-from neo4j import Driver
-from neo4j.exceptions import SessionExpired, ServiceUnavailable
+from fastapi import Request # type:ignore
+from neo4j import Driver # type:ignore
+from neo4j.exceptions import SessionExpired, ServiceUnavailable # type:ignore
 
 
 def get_neo4j_driver(request: Request) -> Driver:
