@@ -22,6 +22,7 @@ def health_check(request: Request):
         "neo4j": {"status": "ok", "detail": "Knowledge graph is reachable."},
         "copilot": {"status": "ok", "detail": "Routing and answer generation are ready."},
         "postgres": {"status": "ok", "detail": "Query logging is available."},
+        "redis": {"status": "ok", "detail": "Response cache is available."},
     }
 
     if startup_errors:

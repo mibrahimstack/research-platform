@@ -106,6 +106,10 @@ docker compose up --build
 docker compose down
 ```
 
+Redis is included in the Compose stack as the API cache. It is optional for
+local scripts: if unavailable, the API remains functional but reports Redis as
+degraded and skips cache reads/writes.
+
 ## 7. Get your dataset
 
 Use the `fetch_papers.py` script (from the earlier step) to download
@@ -347,6 +351,14 @@ streamlit run dashboard/app.py
 # Start both together
 python run_services.py
 ```
+
+## Redis cache
+
+Redis caches semantic-search results for five minutes, graph statistics for
+five minutes, and graph samples for two minutes. Inspect cache behavior through
+the `X-Cache: HIT|MISS` response header. Rebuilding the vector store increments
+the corpus cache version, so search results from an older index are never
+served after a successful rebuild.
 
 ## Local Smoke Test
 

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     neo4j_password: str
     postgres_url: str
     groq_api_key: str
+    redis_url: str = "redis://localhost:6379/0"
 
     # API metadata
     api_title: str = "Enterprise AI Research & Knowledge Discovery Platform API"

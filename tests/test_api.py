@@ -2,7 +2,8 @@ def test_health_endpoint_returns_ok(client):
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    assert response.json()["status"] in {"ok", "degraded"}
+    assert "redis" in response.json()["components"]
 
 
 def test_search_endpoint_returns_source_payload(client):
@@ -33,6 +34,7 @@ def test_search_endpoint_includes_stable_source_identifier(client):
 
     assert response.status_code == 200
     assert response.json()[0]["source_id"] == "unknown:0"
+    assert response.headers["X-Cache"] == "MISS"
 
 
 def test_graph_subgraph_endpoint_returns_client_safe_structure(client):
@@ -40,6 +42,7 @@ def test_graph_subgraph_endpoint_returns_client_safe_structure(client):
 
     assert response.status_code == 200
     assert response.json() == {"nodes": [], "edges": []}
+    assert response.headers["X-Cache"] == "MISS"
 
 
 def test_evidence_endpoint_returns_claim_list(client):

@@ -16,6 +16,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from neo4j import GraphDatabase
+try:
+    import redis
+except ImportError:  # pragma: no cover - supports reduced dependency installs
+    redis = None
 
 from api.config import settings
 from api.schemas import ErrorResponse
@@ -36,6 +40,7 @@ async def lifespan(app: FastAPI):
     """Initialize optional services without crashing app startup when they are unavailable."""
     app.state.neo4j_driver = None
     app.state.copilot_app = None
+    app.state.redis_client = None
     app.state.startup_errors = []
 
     try:
@@ -60,6 +65,16 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         app.state.startup_errors.append(f"postgres: {exc}")
 
+    if redis is None:
+        app.state.startup_errors.append("redis: Redis package is not installed")
+    else:
+        try:
+            redis_client = redis.Redis.from_url(getattr(settings, "redis_url", "redis://localhost:6379/0"), decode_responses=True)
+            redis_client.ping()
+            app.state.redis_client = redis_client
+        except Exception as exc:
+            app.state.startup_errors.append(f"redis: {exc}")
+
     yield
 
     try:
@@ -70,6 +85,12 @@ async def lifespan(app: FastAPI):
 
     try:
         postgres.close_pool()
+    except Exception:
+        pass
+
+    try:
+        if app.state.redis_client is not None:
+            app.state.redis_client.close()
     except Exception:
         pass
 

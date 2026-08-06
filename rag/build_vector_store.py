@@ -18,6 +18,11 @@ import os
 import chromadb
 from sentence_transformers import SentenceTransformer
 
+try:
+    from redis import Redis
+except ImportError:  # pragma: no cover - Redis is optional for offline indexing
+    Redis = None
+
 CHUNKS_FILE = "data/processed/chunks.jsonl"
 VECTOR_STORE_DIR = "data/vector_store"
 COLLECTION_NAME = "research_papers"
@@ -25,6 +30,19 @@ COLLECTION_NAME = "research_papers"
 # Small, fast, well-regarded general-purpose embedding model.
 # Runs fine on CPU, ~90MB download on first run.
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+
+
+def bump_retrieval_cache_version():
+    """Make cached search responses unreachable after a successful index rebuild."""
+    if Redis is None:
+        return
+    try:
+        Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True).incr(
+            "research:corpus_version"
+        )
+    except Exception:
+        # Indexing must stay usable without a running Redis service.
+        pass
 
 
 def load_chunks(filepath):
@@ -92,6 +110,7 @@ def main():
 
         print(f"Stored chunks {i + 1}-{min(i + batch_size, len(chunks))} of {len(chunks)}")
 
+    bump_retrieval_cache_version()
     print(f"\nDone. {collection.count()} chunks stored in the vector store at '{VECTOR_STORE_DIR}'.")
 
 

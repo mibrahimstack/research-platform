@@ -8,6 +8,7 @@ pydantic-settings
 # Knowledge graph + DB
 neo4j
 psycopg2-binary
+redis
 
 # LLM orchestration (lightweight core pieces)
 langchain
