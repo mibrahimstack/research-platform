@@ -16,6 +16,7 @@ import sys
 import os
 from dotenv import load_dotenv
 from groq import Groq
+from db.evidence import get_claims_for_documents
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
 from search import search # type: ignore
@@ -60,9 +61,31 @@ def build_context(selected_chunks, max_words_per_chunk=150):
     return "\n\n".join(context_blocks)
 
 
+def build_claim_evidence(selected_chunks, max_claims=24):
+    """Add exact, persisted claim spans to the reasoning context when available."""
+    document_ids = list(dict.fromkeys(meta.get("paper_id") for _, meta in selected_chunks if meta.get("paper_id")))
+    claims = get_claims_for_documents(document_ids, limit=max_claims)
+    if not claims:
+        return ""
+    blocks = []
+    for claim in claims:
+        identifiers = ", ".join(value for value in (claim.get("pmcid"), claim.get("doi")) if value)
+        blocks.append(
+            f"[Claim {claim['claim_id']}] Paper: {claim['title']} ({identifiers or claim['document_id']})\n"
+            f"Statement: {claim['statement']}\n"
+            f"Structured fields: population={claim.get('population') or 'unspecified'}; "
+            f"intervention={claim.get('intervention') or 'unspecified'}; outcome={claim.get('outcome') or 'unspecified'}; "
+            f"direction={claim.get('direction') or 'unknown'}; value={claim.get('value_text') or 'unspecified'}; "
+            f"extraction confidence={claim['confidence']:.2f}\n"
+            f"Exact evidence ({claim['chunk_id']} chars {claim['char_start']}-{claim['char_end']}): \"{claim['evidence_quote']}\""
+        )
+    return "\n\n".join(blocks)
+
+
 def detect_contradictions(topic, top_k=12, max_per_paper=1):
     selected_chunks = retrieve_diverse_chunks(topic, top_k=top_k, max_per_paper=max_per_paper)
     context = build_context(selected_chunks)
+    claim_evidence = build_claim_evidence(selected_chunks)
 
     num_papers = len(set(meta["paper_title"] for _, meta in selected_chunks))
     print(f"Comparing {len(selected_chunks)} chunks across {num_papers} papers for contradictions...\n")
@@ -97,7 +120,18 @@ def detect_contradictions(topic, top_k=12, max_per_paper=1):
         "leave it out."
     )
 
-    user_prompt = f"Topic: {topic}\n\nSources:\n\n{context}"
+    provenance_instruction = (
+        "\n\nA structured evidence register is included below. Use it to compare claims only when "
+        "population, intervention, and outcome are compatible. Every cited structured claim includes "
+        "a persistent claim ID, source chunk ID, exact quote, and character span. Do not treat extraction "
+        "confidence as clinical certainty."
+        if claim_evidence else ""
+    )
+    user_prompt = (
+        f"Topic: {topic}\n\nSources:\n\n{context}{provenance_instruction}"
+        f"\n\nStructured Evidence Register:\n\n{claim_evidence}" if claim_evidence
+        else f"Topic: {topic}\n\nSources:\n\n{context}"
+    )
 
     response = client.chat.completions.create(
         model=LLM_MODEL,

@@ -75,6 +75,7 @@ def main():
         ids = [f"{c['paper_id']}_{c['chunk_index']}" for c in batch]
         metadatas = [
             {
+                "chunk_id": f"{c['paper_id']}:{c['chunk_index']}",
                 "paper_id": c["paper_id"],
                 "paper_title": c["paper_title"],
                 "section": c["section"],

@@ -1,19 +1,16 @@
 from rag.answer import build_explained_answer, split_answer_sections
 
 
-def test_build_explained_answer_includes_sources():
+def test_build_explained_answer_removes_model_generated_source_list():
     results = {
         "documents": [["Some evidence text"]],
         "metadatas": [[{"paper_title": "Paper A", "section": "Abstract"}]],
         "distances": [[0.1]],
     }
 
-    explained = build_explained_answer("This is the answer.", results)
+    explained = build_explained_answer("This is the answer. [1]\n\nSources used:\n[1] Paper A", results)
 
-    assert "This is the answer." in explained
-    assert "Sources used:" in explained
-    assert "Paper A" in explained
-    assert "Abstract" in explained
+    assert explained == "This is the answer. [1]"
 
 
 def test_split_answer_sections_parses_body_and_sources():

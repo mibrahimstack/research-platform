@@ -41,12 +41,15 @@ def answer(request: QueryRequest, http_request: Request):
 
     sources = [
         SourceChunk(
+            source_id=meta.get("chunk_id", f"{meta.get('paper_id', 'unknown')}:{i - 1}"),
+            citation_index=i,
+            paper_id=meta.get("paper_id"),
             paper_title=meta["paper_title"],
             section=meta["section"],
             text=doc,
             similarity=round(1 - dist, 4),
         )
-        for doc, meta, dist in zip(documents, metadatas, distances)
+        for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1)
     ]
 
     log_query(

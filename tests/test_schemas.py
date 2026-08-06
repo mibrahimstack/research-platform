@@ -20,7 +20,7 @@ def test_answer_response_builds_expected_payload():
     payload = AnswerResponse(
         query="test",
         answer="answer",
-        sources=[SourceChunk(paper_title="Paper", section="Abstract", text="text")],
+        sources=[SourceChunk(source_id="paper:0", citation_index=1, paper_title="Paper", section="Abstract", text="text")],
     )
 
     assert payload.query == "test"

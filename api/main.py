@@ -19,7 +19,7 @@ from neo4j import GraphDatabase
 
 from api.config import settings
 from api.schemas import ErrorResponse
-from api.routers import health, search, qa, agents, copilot, graph, logs
+from api.routers import health, search, qa, agents, copilot, graph, logs, evidence
 from db import postgres
 
 try:
@@ -112,6 +112,7 @@ app.include_router(agents.router)
 app.include_router(copilot.router)
 app.include_router(graph.router)
 app.include_router(logs.router)
+app.include_router(evidence.router)
 
 
 @app.get("/", include_in_schema=False)

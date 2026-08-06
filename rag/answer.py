@@ -45,18 +45,24 @@ def build_context(results):
 
 
 def build_explained_answer(answer_text, results):
-    """Wrap the raw answer with a concise source-backed summary."""
-    metadatas = results["metadatas"][0]
+    """Return answer prose only; the API exposes the canonical evidence list.
 
-    source_summary = []
-    for i, meta in enumerate(metadatas, 1):
-        source_summary.append(f"[{i}] {meta['paper_title']} ({meta['section']})")
+    The previous implementation appended every retrieved source after asking the
+    model to generate its own list. That produced duplicate, occasionally
+    inconsistent citations. Source ordering is now owned by the retrieval
+    result, while the model uses inline [n] references in its answer.
+    """
+    del results
+    return strip_source_list(answer_text)
 
-    evidence_block = "\n".join(source_summary)
-    return (
-        f"{answer_text}\n\n"
-        f"Sources used:\n{evidence_block}"
-    )
+
+def strip_source_list(answer_text):
+    """Remove a model-generated trailing source list, retaining inline citations."""
+    for heading in ("Sources used:", "Sources:", "References:"):
+        if heading.lower() in answer_text.lower():
+            start = answer_text.lower().index(heading.lower())
+            return answer_text[:start].rstrip()
+    return answer_text.strip()
 
 
 def split_answer_sections(answer_text):
@@ -81,9 +87,10 @@ def answer_question(question, top_k=5):
         "You are a research assistant. Answer the user's question using ONLY "
         "the information in the provided sources below. If the sources don't "
         "contain enough information to answer, say so clearly — do not use "
-        "outside knowledge. Structure your answer in two parts: "
-        "1. A short answer paragraph. 2. A 'Sources used' section listing the "
-        "source numbers you relied on. Keep the answer concise and evidence-based."
+        "outside knowledge. Cite every factual claim inline using the matching "
+        "source number, for example [1] or [1][3]. Do not add a Sources, "
+        "References, or bibliography section: the application renders the "
+        "canonical evidence list. Keep the answer concise and evidence-based."
     )
 
     user_prompt = f"Sources:\n\n{context}\n\nQuestion: {question}"

@@ -19,6 +19,14 @@ venv\Scripts\Activate.ps1     # Windows PowerShell
 pip install -r requirements.txt
 ```
 
+For local development and the test suite, install the smaller development
+profile as well:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
 ## 3. Create your free cloud accounts
 
 You need three free accounts. Do all three before writing code.
@@ -279,10 +287,27 @@ All three services should show `[PASS]` before continuing.
 ```bash
 python fetch_papers.py                    # download papers
 python ingestion/batch_ingest.py          # parse and chunk them
+python ingestion/persist_corpus.py        # persist documents and chunks with source IDs
 python rag/build_vector_store.py          # build semantic search index
 python nlp/extract_entities.py            # extract entities via LLM
+python nlp/extract_claims.py              # extract claims with exact source spans
 python knowledge_graph/build_graph.py     # build the Neo4j knowledge graph
 ```
+
+`batch_ingest.py` accepts XML, PDF, and DOCX files. Each run writes
+`data/processed/ingestion_manifest.jsonl` and
+`data/processed/ingestion_failures.jsonl` alongside `chunks.jsonl`, so failed
+documents can be retried without silently disappearing from the corpus.
+
+### Evidence provenance pipeline
+
+`persist_corpus.py` creates persistent document and chunk records in Postgres,
+including PMCID/DOI where available. `extract_claims.py` extracts structured
+claims and stores each one only if its evidence quote matches an exact
+character span in its source chunk. The API exposes this proof trail at
+`GET /api/v1/evidence/documents/{document_id}/claims`. Rebuild the vector
+store after ingesting so retrieval results retain the stable `chunk_id` used by
+the evidence layer.
 
 ### 5. Try each capability
 

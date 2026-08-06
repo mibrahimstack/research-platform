@@ -24,6 +24,9 @@ def init_pool(postgres_url: str, minconn: int = 1, maxconn: int = 5):
     global _connection_pool
     _connection_pool = pg_pool.SimpleConnectionPool(minconn, maxconn, dsn=postgres_url)
     _create_table_if_missing()
+    # Import lazily to avoid a circular import while this module initializes.
+    from db.evidence import create_evidence_tables
+    create_evidence_tables()
 
 
 def close_pool():

@@ -1,0 +1,3 @@
+# Local development and CI tools. Runtime dependencies stay split by profile.
+-r requirements-core.txt
+pytest

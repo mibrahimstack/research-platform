@@ -25,6 +25,9 @@ class QueryRequest(BaseModel):
 
 class SourceChunk(BaseModel):
     """One retrieved piece of evidence backing an answer."""
+    source_id: str
+    citation_index: int
+    paper_id: Optional[str] = None
     paper_title: str
     section: str
     text: str
@@ -58,6 +61,44 @@ class GraphStats(BaseModel):
     node_counts: dict
     top_drugs: dict
     top_diseases: dict
+
+
+class GraphNode(BaseModel):
+    """A display-safe graph node returned to API clients."""
+    id: str
+    label: str
+    name: str
+
+
+class GraphEdge(BaseModel):
+    source: str
+    target: str
+    relationship: str
+
+
+class GraphSubgraph(BaseModel):
+    nodes: List[GraphNode]
+    edges: List[GraphEdge]
+
+
+class ClaimEvidence(BaseModel):
+    claim_id: str
+    document_id: str
+    chunk_id: str
+    statement: str
+    claim_type: str
+    direction: Optional[str] = None
+    population: Optional[str] = None
+    intervention: Optional[str] = None
+    outcome: Optional[str] = None
+    value_text: Optional[str] = None
+    confidence: float
+    char_start: int
+    char_end: int
+    evidence_quote: str
+    title: str
+    doi: Optional[str] = None
+    pmcid: Optional[str] = None
 
 
 class QueryLogEntry(BaseModel):

@@ -9,7 +9,7 @@ dependencies.py rather than opening a new connection per request.
 from fastapi import APIRouter, Depends, HTTPException # type:ignore
 from neo4j import Driver # type:ignore
 from api.dependencies import get_neo4j_driver, run_cypher
-from api.schemas import GraphStats
+from api.schemas import GraphEdge, GraphNode, GraphStats, GraphSubgraph
 
 router = APIRouter(prefix="/api/v1/graph", tags=["Knowledge Graph"])
 
@@ -46,3 +46,41 @@ def graph_stats(driver: Driver = Depends(get_neo4j_driver)):
         raise HTTPException(status_code=500, detail=f"Failed to query knowledge graph: {e}")
 
     return GraphStats(node_counts=node_counts, top_drugs=top_drugs, top_diseases=top_diseases)
+
+
+@router.get("/subgraph", response_model=GraphSubgraph)
+def graph_subgraph(limit: int = 80, driver: Driver = Depends(get_neo4j_driver)):
+    """Return a bounded graph sample for visual clients without exposing Neo4j."""
+    try:
+        records = run_cypher(
+            driver,
+            """
+            MATCH (p:Paper)-[r]-(x)
+            RETURN p, r, x
+            LIMIT $limit
+            """,
+            limit=limit,
+        )
+        nodes = {}
+        edges = {}
+        for record in records:
+            for node_key in ("p", "x"):
+                node = record[node_key]
+                node_id = node.element_id
+                nodes[node_id] = GraphNode(
+                    id=node_id,
+                    label=next(iter(node.labels), "Unknown"),
+                    name=node.get("title") or node.get("name") or "Unknown",
+                )
+
+            relationship = record["r"]
+            edge = GraphEdge(
+                source=relationship.start_node.element_id,
+                target=relationship.end_node.element_id,
+                relationship=relationship.type,
+            )
+            edges[(edge.source, edge.target, edge.relationship)] = edge
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to query knowledge graph: {exc}")
+
+    return GraphSubgraph(nodes=list(nodes.values()), edges=list(edges.values()))
