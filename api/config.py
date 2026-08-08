@@ -11,15 +11,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Required credentials — pydantic-settings reads these from the
-    # environment (or a local .env file), matching the same variable
-    # names used throughout the rest of the project.
+    # Required credentials
     neo4j_uri: str
     neo4j_username: str
     neo4j_password: str
     postgres_url: str
     groq_api_key: str
-    redis_url: str = "redis://localhost:6379/0"
+
+    # API authentication — comma-separated list of valid keys, e.g.
+    # "key_for_ibrahim,key_for_sohaib". Empty by default so the app
+    # still starts without it configured, but every protected endpoint
+    # will reject all requests until at least one key is set.
+    api_keys: str = ""
 
     # API metadata
     api_title: str = "Enterprise AI Research & Knowledge Discovery Platform API"
@@ -29,18 +32,14 @@ class Settings(BaseSettings):
         "semantic search, and multi-agent research assistance."
     )
 
-    # Runtime profile for local dev vs container/server deployment.
-    environment: str = "development"
-    host: str = "127.0.0.1"
-    port: int = 8000
-    dashboard_port: int = 8501
-
-    # CORS — which origins are allowed to call this API from a browser.
-    # "*" is convenient for development; tighten this before any real
-    # public deployment.
     cors_allow_origins: list[str] = ["*"]
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+
+    @property
+    def api_key_set(self) -> set[str]:
+        """Parses the comma-separated API_KEYS string into a clean set."""
+        return {k.strip() for k in self.api_keys.split(",") if k.strip()}
 
 
 settings = Settings()
