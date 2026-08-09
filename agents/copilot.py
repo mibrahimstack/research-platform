@@ -1,29 +1,19 @@
 """
 agents/copilot.py
 
-The "AI Research Copilot" module from the case study — the orchestrator
-agent that ties everything else together.
+The "AI Research Copilot" module — the orchestrator agent that ties
+everything else together. Reads the user's question, classifies its
+intent using an LLM router, and automatically calls the right
+specialist module.
 
-Instead of you manually deciding "should I run answer.py or
-literature_review.py?", this agent reads the user's question, classifies
-its INTENT using an LLM router, and automatically calls the right
-specialist module:
-
-    - qa                 -> rag/answer.py       (specific factual question)
-    - literature_review  -> agents/literature_review.py (broad topic summary)
-    - contradiction      -> agents/contradiction_detection.py (do studies disagree?)
-    - hypothesis         -> agents/hypothesis_generator.py (new research directions)
-
-This is built with LangGraph, giving you a real, inspectable multi-agent
-graph rather than a pile of if/else statements.
-
-Run from the project root:
-    python agents/copilot.py "your question here"
+For the "qa" route specifically, a confidence score (derived from
+retrieval similarity) is included in the state, since that's the route
+where a direct similarity-based confidence signal makes the most sense.
 """
 
 import sys
 import os
-from typing import TypedDict
+from typing import TypedDict, Optional
 from dotenv import load_dotenv
 from groq import Groq
 from langgraph.graph import StateGraph, END
@@ -31,32 +21,29 @@ from langgraph.graph import StateGraph, END
 # Add this file's own directory AND the sibling rag/ folder to the path.
 # This makes the imports below work whether copilot.py is run directly
 # (python agents/copilot.py) OR imported by another script, like the
-# dashboard (from agents.copilot import build_graph) — the two situations
-# handle Python's default search path differently.
+# dashboard or the API (from agents.copilot import build_graph).
 sys.path.append(os.path.dirname(__file__))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
-from answer import answer_question # type: ignore
+
+from answer import answer_question, compute_confidence
 from literature_review import generate_literature_review
 from contradiction_detection import detect_contradictions
 from hypothesis_generator import generate_hypotheses
 
 load_dotenv()
 
-ROUTER_MODEL = "llama-3.1-8b-instant"  # routing is simple classification, fast model is fine here
+ROUTER_MODEL = "llama-3.1-8b-instant"
 
 
 class CopilotState(TypedDict):
     question: str
     route: str
     answer: str
+    confidence_score: Optional[float]
+    confidence_label: Optional[str]
 
 
 def route_question(state: CopilotState) -> CopilotState:
-    """
-    The orchestrator/router agent. Reads the question and decides which
-    specialist agent should handle it. This is the "brain" of the
-    multi-agent system.
-    """
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
     system_prompt = (
@@ -86,15 +73,18 @@ def route_question(state: CopilotState) -> CopilotState:
     route = response.choices[0].message.content.strip().lower()
     valid_routes = ("qa", "literature_review", "contradiction", "hypothesis")
     if route not in valid_routes:
-        route = "qa"  # safe fallback if the model returns something unexpected
+        route = "qa"
 
     state["route"] = route
     return state
 
 
 def run_qa(state: CopilotState) -> CopilotState:
-    answer, _ = answer_question(state["question"])
+    answer, results = answer_question(state["question"])
+    confidence_score, confidence_label = compute_confidence(results)
     state["answer"] = answer
+    state["confidence_score"] = confidence_score
+    state["confidence_label"] = confidence_label
     return state
 
 
@@ -117,7 +107,6 @@ def run_hypothesis(state: CopilotState) -> CopilotState:
 
 
 def build_graph():
-    """Wires all the agents together into one LangGraph graph."""
     graph = StateGraph(CopilotState)
 
     graph.add_node("router", route_question)
@@ -128,8 +117,6 @@ def build_graph():
 
     graph.set_entry_point("router")
 
-    # This is the actual "multi-agent" decision point: based on what the
-    # router decided, control flows to exactly one specialist agent.
     graph.add_conditional_edges(
         "router",
         lambda state: state["route"],
@@ -160,12 +147,17 @@ def main():
     print(f"Question: {question}\n")
     print("Routing to the right specialist agent...\n")
 
-    result = app.invoke({"question": question, "route": "", "answer": ""})
+    result = app.invoke({
+        "question": question, "route": "", "answer": "",
+        "confidence_score": None, "confidence_label": None,
+    })
 
     print(f"[Routed to: {result['route']}]\n")
     print("=" * 60)
     print(result["answer"])
     print("=" * 60)
+    if result.get("confidence_score") is not None:
+        print(f"\nConfidence: {result['confidence_label']} ({result['confidence_score']}/100)")
 
 
 if __name__ == "__main__":

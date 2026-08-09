@@ -1,39 +1,27 @@
 """
 api/routers/qa.py
 
-Full RAG question-answering: retrieval + LLM generation + citations.
-This is the endpoint for a specific, narrow question with one clear
-answer. Every call is logged to Postgres for the audit trail.
+Full RAG question-answering: retrieval + LLM generation + citations +
+a confidence score derived from retrieval similarity. Every call is
+logged to Postgres for the audit trail.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from api.schemas import QueryRequest, AnswerResponse, SourceChunk
-from rag.answer import answer_question
+from rag.answer import answer_question, compute_confidence
 from db.postgres import log_query, Timer
-
-
-def _build_fallback_answer(query: str) -> str:
-    return (
-        "I couldn't generate a live answer right now because the backend answer service is unavailable. "
-        f"Please try again shortly or re-check the service configuration for your query: {query}"
-    )
 
 router = APIRouter(prefix="/api/v1", tags=["Question Answering"])
 
 
 @router.post("/answer", response_model=AnswerResponse)
-def answer(request: QueryRequest, http_request: Request):
+def answer(request: QueryRequest):
     with Timer() as t:
         try:
             answer_text, results = answer_question(request.query, top_k=request.top_k)
         except Exception as e:
             log_query("/api/v1/answer", request.query, 0, status="error", error_detail=str(e))
-            fallback_answer = _build_fallback_answer(request.query)
-            return AnswerResponse(
-                query=request.query,
-                answer=fallback_answer,
-                sources=[],
-            )
+            raise HTTPException(status_code=500, detail=f"Failed to generate answer: {e}")
 
     documents = results["documents"][0]
     metadatas = results["metadatas"][0]
@@ -41,20 +29,25 @@ def answer(request: QueryRequest, http_request: Request):
 
     sources = [
         SourceChunk(
-            source_id=meta.get("chunk_id", f"{meta.get('paper_id', 'unknown')}:{i - 1}"),
-            citation_index=i,
-            paper_id=meta.get("paper_id"),
             paper_title=meta["paper_title"],
             section=meta["section"],
             text=doc,
             similarity=round(1 - dist, 4),
         )
-        for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1)
+        for doc, meta, dist in zip(documents, metadatas, distances)
     ]
+
+    confidence_score, confidence_label = compute_confidence(results)
 
     log_query(
         "/api/v1/answer", request.query, t.elapsed_ms,
         agent="qa", num_sources=len(sources),
     )
 
-    return AnswerResponse(query=request.query, answer=answer_text, sources=sources)
+    return AnswerResponse(
+        query=request.query,
+        answer=answer_text,
+        sources=sources,
+        confidence_score=confidence_score,
+        confidence_label=confidence_label,
+    )

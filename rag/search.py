@@ -7,22 +7,11 @@ and it's the retrieval half of your RAG pipeline.
 
 Run from the project root:
     python rag/search.py "your question here"
-
-Example:
-    python rag/search.py "what drugs interact with food"
 """
 
 import sys
-
-try:
-    import chromadb
-except Exception:  # pragma: no cover - exercised when optional deps are missing or broken
-    chromadb = None
-
-try:
-    from sentence_transformers import SentenceTransformer
-except Exception:  # pragma: no cover - exercised when optional deps are missing or broken
-    SentenceTransformer = None
+import chromadb
+from sentence_transformers import SentenceTransformer
 
 VECTOR_STORE_DIR = "data/vector_store"
 COLLECTION_NAME = "research_papers"
@@ -39,10 +28,6 @@ _chroma_client = None
 def get_model():
     global _model
     if _model is None:
-        if SentenceTransformer is None:
-            raise ImportError(
-                "sentence-transformers is required for semantic search; install the ML dependencies"
-            )
         _model = SentenceTransformer(EMBEDDING_MODEL)
     return _model
 
@@ -50,10 +35,6 @@ def get_model():
 def get_chroma_client():
     global _chroma_client
     if _chroma_client is None:
-        if chromadb is None:
-            raise ImportError(
-                "chromadb is required for semantic search; install the ML dependencies"
-            )
         _chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_DIR)
     return _chroma_client
 
@@ -88,7 +69,7 @@ def main():
     distances = results["distances"][0]
 
     for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
-        similarity = 1 - dist  # rough similarity score, higher = more relevant
+        similarity = 1 - dist
         print(f"--- Result {i} (similarity: {similarity:.2f}) ---")
         print(f"Paper: {meta['paper_title']}")
         print(f"Section: {meta['section']}")

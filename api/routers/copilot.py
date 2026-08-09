@@ -2,13 +2,13 @@
 api/routers/copilot.py
 
 The AI Research Copilot endpoint — the single entry point most real
-callers should use. Takes a plain-English question and lets the
-LangGraph router decide which specialist agent handles it, rather than
-the caller having to know which endpoint to call. Every request is
-logged with the agent the router actually selected.
+callers should use. Confidence score is included when available (the
+"qa" route populates it; other routes leave it null, since a
+similarity-based confidence signal doesn't map as directly onto
+multi-paper synthesis tasks).
 """
 
-from fastapi import APIRouter, HTTPException, Request# type:ignore
+from fastapi import APIRouter, HTTPException, Request
 from api.schemas import QueryRequest, CopilotResponse
 from db.postgres import log_query, Timer
 
@@ -20,7 +20,10 @@ def ask_copilot(request: QueryRequest, http_request: Request):
     with Timer() as t:
         try:
             app = http_request.app.state.copilot_app
-            result = app.invoke({"question": request.query, "route": "", "answer": ""})
+            result = app.invoke({
+                "question": request.query, "route": "", "answer": "",
+                "confidence_score": None, "confidence_label": None,
+            })
         except Exception as e:
             log_query("/api/v1/copilot", request.query, 0, status="error", error_detail=str(e))
             raise HTTPException(status_code=500, detail=f"Copilot failed to process query: {e}")
@@ -34,4 +37,6 @@ def ask_copilot(request: QueryRequest, http_request: Request):
         query=request.query,
         routed_to=result["route"],
         answer=result["answer"],
+        confidence_score=result.get("confidence_score"),
+        confidence_label=result.get("confidence_label"),
     )
