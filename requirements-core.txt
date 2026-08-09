@@ -17,6 +17,7 @@ langchain-groq
 groq
 
 # Dashboard (move to core so the dashboard can run)
+starlette<1.4.0
 streamlit
 pyvis
 
