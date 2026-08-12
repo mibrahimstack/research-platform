@@ -16,6 +16,7 @@ Three pages:
 
 import sys
 import os
+import time
 import streamlit as st
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
@@ -163,7 +164,14 @@ def stat_card(label, value):
 
 def section_label(text):
     st.markdown(f'<div class="rp-section-label">&#9670; {text}</div>', unsafe_allow_html=True)
-
+# ============================================================
+# HELPER: WORD-BY-WORD STREAMING GENERATOR
+# ============================================================
+def stream_text(text: str):
+    """Yields text word-by-word with a micro-delay for a smooth typing effect."""
+    for word in text.split(" "):
+        yield word + " "
+        time.sleep(0.015)  # Micro-delay between words
 
 # ============================================================
 # 3. CACHED RESOURCES
@@ -232,7 +240,7 @@ def build_graph_html(driver, limit=80):
 
 
 # ============================================================
-# PAGE: ASK QUESTIONS
+# PAGE: ASK QUESTIONS (With Word-by-Word Streaming)
 # ============================================================
 def page_ask_questions():
     st.markdown(
@@ -251,58 +259,87 @@ def page_ask_questions():
     question = st.text_input("Your question", placeholder="e.g. summarize research on SGLT2 inhibitors", label_visibility="collapsed")
 
     if st.button("Ask") and question:
-        with st.spinner("Routing and generating answer..."):
+        with st.spinner("Routing question to specialist agent..."):
             app = get_copilot_app()
-            # We initialize the state dictionary with the keys your backend expects
+            
+            # Format the last 3 turns of conversation for history context
+            recent_history = st.session_state.chat_history[-3:]
+            formatted_history = ""
+            for msg in recent_history:
+                formatted_history += f"Human: {msg['question']}\nAssistant: {msg['answer']}\n\n"
+            
+            # Execute backend retrieval and reasoning graph
             result = app.invoke({
-                "question": question, 
+                "question": question,
+                "chat_history": formatted_history,
                 "route": "", 
                 "answer": "",
                 "confidence_score": None, 
                 "confidence_label": None,
-                "similarity_score": None  # Added in case your backend passes this
-            })
-            
-            # Save all the metrics into the frontend session state
-            st.session_state.chat_history.append({
-                "question": question, 
-                "route": result.get("route", "Unknown"), 
-                "answer": result.get("answer", "No answer generated."),
-                "confidence_score": result.get("confidence_score"),
-                "confidence_label": result.get("confidence_label"),
-                "similarity_score": result.get("similarity_score")
+                "similarity_score": None
             })
 
-    for entry in reversed(st.session_state.chat_history):
-        color = AGENT_COLORS.get(entry["route"], "#94A3B8")
-        label = AGENT_LABELS.get(entry["route"], entry["route"])
-        
-        # 1. Start with the main Agent Routing badge
+        # Extract values
+        route = result.get("route", "Unknown")
+        answer = result.get("answer", "No answer generated.")
+        color = AGENT_COLORS.get(route, "#94A3B8")
+        label = AGENT_LABELS.get(route, route)
+
+        # Create the badge tags
         badges_html = f'<span class="rp-tag" style="color:{color};">&#9679; {label}</span>'
-        
-        # 2. Add the Confidence Score badge if the backend returned it
-        if entry.get("confidence_score") is not None:
-            # Format to 2 decimal places (e.g., 0.92)
-            c_score = entry["confidence_score"]
-            c_label = entry.get("confidence_label") or ""
+        if result.get("confidence_score") is not None:
+            c_score = result["confidence_score"]
+            c_label = result.get("confidence_label") or ""
             badges_html += f' <span class="rp-tag" style="color:#A78BFA; margin-left:8px;">&#9889; Conf: {c_score:.2f} {c_label}</span>'
-            
-        # 3. Add the Similarity Score badge if the backend returned it
-        if entry.get("similarity_score") is not None:
-            s_score = entry["similarity_score"]
+        if result.get("similarity_score") is not None:
+            s_score = result["similarity_score"]
             badges_html += f' <span class="rp-tag" style="color:#2DD4BF; margin-left:8px;">&#128269; Sim: {s_score:.2f}</span>'
 
-        # Render the card with the dynamic badges
-        st.markdown(
-            f"""
-            <div class="rp-answer-card">
-                <div style="margin-bottom: 0.5rem;">{badges_html}</div>
-                <div class="rp-question">{entry['question']}</div>
-                <div class="rp-answer-body">{entry['answer']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        # Render the card container and stream the live answer
+        with st.container():
+            st.markdown(
+                f"""
+                <div class="rp-answer-card">
+                    <div style="margin-bottom: 0.5rem;">{badges_html}</div>
+                    <div class="rp-question">{question}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            # Stream the text live word-by-word
+            st.write_stream(stream_text(answer))
+
+        # Save to session history so past messages remain visible on page refresh
+        st.session_state.chat_history.append({
+            "question": question, 
+            "route": route, 
+            "answer": answer,
+            "confidence_score": result.get("confidence_score"),
+            "confidence_label": result.get("confidence_label"),
+            "similarity_score": result.get("similarity_score")
+        })
+
+    # Render previous conversation history statically below
+    if st.session_state.chat_history:
+        section_label("Previous Questions")
+        for entry in reversed(st.session_state.chat_history[:-1]):  # Exclude the current live answer
+            color = AGENT_COLORS.get(entry["route"], "#94A3B8")
+            label = AGENT_LABELS.get(entry["route"], entry["route"])
+            
+            badges_html = f'<span class="rp-tag" style="color:{color};">&#9679; {label}</span>'
+            if entry.get("confidence_score") is not None:
+                badges_html += f' <span class="rp-tag" style="color:#A78BFA; margin-left:8px;">&#9889; Conf: {entry["confidence_score"]:.2f}</span>'
+
+            st.markdown(
+                f"""
+                <div class="rp-answer-card">
+                    <div style="margin-bottom: 0.5rem;">{badges_html}</div>
+                    <div class="rp-question">{entry['question']}</div>
+                    <div class="rp-answer-body">{entry['answer']}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def process_upload(uploaded_file):

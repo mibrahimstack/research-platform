@@ -2,6 +2,7 @@
   {
     "id": "q1",
     "question": "What effect does grapefruit juice have on drug metabolism?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "Nutritional Counseling",
       "Drug-Food Interactions"
@@ -15,6 +16,7 @@
   {
     "id": "q2",
     "question": "How does dietary vitamin K intake interact with warfarin therapy?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "Nutritional Counseling",
       "Drug-Food Interactions"
@@ -27,6 +29,7 @@
   {
     "id": "q3",
     "question": "How do GLP-1 receptor agonists affect gastric emptying and food absorption?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "Nutritional Counseling",
       "Drug-Food Interactions"
@@ -39,6 +42,7 @@
   {
     "id": "q4",
     "question": "What is the incidence rate of diabetic ketoacidosis among first-time SGLT2 inhibitor users?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "GLP-1 Receptor Agonists and SGLT2 Inhibitors",
       "Type 1 Diabetes"
@@ -52,6 +56,7 @@
   {
     "id": "q5",
     "question": "Which antidiabetic drug classes are associated with increased fracture risk?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "Polypharmacy and Bone Health"
     ],
@@ -63,6 +68,7 @@
   {
     "id": "q6",
     "question": "Which antidiabetic medications appear neutral or protective for bone health?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "Polypharmacy and Bone Health"
     ],
@@ -75,6 +81,7 @@
   {
     "id": "q7",
     "question": "What was the study design used to assess drug-food interaction knowledge in the nutritional counseling study?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "Nutritional Counseling",
       "Drug-Food Interactions"
@@ -87,6 +94,7 @@
   {
     "id": "q8",
     "question": "How many adults with type 1 diabetes were included in the nationwide Swedish cohort study on GLP-1 and SGLT2 use?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "GLP-1 Receptor Agonists and SGLT2 Inhibitors",
       "Type 1 Diabetes"
@@ -99,6 +107,7 @@
   {
     "id": "q9",
     "question": "What percentage of patients recognized the importance of education on anti-diabetic drug-food interactions?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "Nutritional Counseling"
     ],
@@ -109,6 +118,7 @@
   {
     "id": "q10",
     "question": "What proportion of patients rated their knowledge of drug-food interactions as insufficient in the nutritional counseling study?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "Nutritional Counseling"
     ],
@@ -119,6 +129,7 @@
   {
     "id": "q11",
     "question": "Was attendance at dietary consultations significantly associated with drug-food interaction knowledge, and what was the odds ratio?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "Nutritional Counseling"
     ],
@@ -129,6 +140,7 @@
   {
     "id": "q12",
     "question": "Which non-antidiabetic drug classes are associated with worsened bone architecture and increased fracture risk in type 2 diabetes patients?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "Polypharmacy and Bone Health"
     ],
@@ -140,6 +152,7 @@
   {
     "id": "q13",
     "question": "Which medication classes are considered bone-protective according to the polypharmacy and bone health review?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "Polypharmacy and Bone Health"
     ],
@@ -151,6 +164,7 @@
   {
     "id": "q14",
     "question": "What percentage of Swedish adults with type 1 diabetes were using GLP-1 receptor agonists in 2024?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "GLP-1 Receptor Agonists and SGLT2 Inhibitors"
     ],
@@ -161,6 +175,7 @@
   {
     "id": "q15",
     "question": "What percentage of Swedish adults with type 1 diabetes were using SGLT2 inhibitors in 2024?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "GLP-1 Receptor Agonists and SGLT2 Inhibitors"
     ],
@@ -171,6 +186,7 @@
   {
     "id": "q16",
     "question": "What proportion of the Swedish type 1 diabetes cohort had an HbA1c of 64 mmol/mol or higher in 2024?",
+    "expected_route": "qa",
     "expected_paper_keywords": [
       "GLP-1 Receptor Agonists and SGLT2 Inhibitors"
     ],
@@ -181,6 +197,7 @@
   {
     "id": "q17",
     "question": "What types of medications are commonly prescribed to type 2 diabetes patients with comorbid psychological disorders?",
+    "expected_route": "literature_review",
     "expected_paper_keywords": [
       "psychological disorders"
     ],
