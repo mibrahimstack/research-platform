@@ -7,11 +7,11 @@ this is the same pattern Claude, ChatGPT, and NotebookLM use for their
 left-hand navigation).
 
 Three pages:
-    1. Ask Questions — the copilot chat (unchanged from before)
+    1. Ask Questions — the copilot chat
     2. Documents — upload a PDF/DOCX/TXT, see it processed end-to-end,
        and browse previously uploaded documents
     3. Overview & Graph — corpus stats and the interactive knowledge
-       graph visualization (unchanged from before)
+       graph visualization
 """
 
 import sys
@@ -27,13 +27,13 @@ from groq import Groq
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "agents"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
+
 from agents.copilot import build_graph
 from ingestion.upload_processor import process_uploaded_file 
 from rag.vector_store_writer import add_document_to_vector_store 
 from knowledge_graph.graph_writer import add_paper_to_graph 
 from nlp.extract_entities import extract_entities_for_paper 
 from db.uploads import record_uploaded_document, get_uploaded_documents 
-
 from db import postgres
 
 @st.cache_resource
@@ -42,7 +42,6 @@ def init_postgres():
     return True
 
 init_postgres()
-
 load_dotenv()
 
 try:
@@ -54,23 +53,50 @@ except Exception:
 
 st.set_page_config(
     page_title="Research Intelligence Platform",
-    page_icon="\U0001F9EC",
+    page_icon="🧬",
     layout="wide",
 )
 
+# ============================================================
+# 1. FRONTEND AUTHORIZATION GATE
+# ============================================================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.markdown("<h2 style='text-align: center;'>🔒 Platform Login</h2>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.container(border=True):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            
+            if st.button("Authenticate", use_container_width=True):
+                if username == "admin" and password == "ezitech":
+                    st.session_state.authenticated = True
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password.")
+    st.stop()
+
+
+# ============================================================
+# 2. STYLES & CONSTANTS
+# ============================================================
 AGENT_COLORS = {
     "qa": "#22D3EE",
     "literature_review": "#4ADE80",
     "contradiction": "#FB7185",
     "hypothesis": "#D946EF",
 }
+
 AGENT_LABELS = {
     "qa": "Direct Answer",
     "literature_review": "Literature Review",
     "contradiction": "Contradiction Check",
     "hypothesis": "Hypothesis Generation",
 }
-
 
 def inject_custom_css():
     st.markdown(
@@ -88,13 +114,13 @@ def inject_custom_css():
             background-attachment: fixed;
         }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        .rp-masthead { padding: 1.2rem 0 1.4rem 0; margin-bottom: 1rem; border-bottom: 1px solid rgba(148,163,184,0.15); animation: fadeUp 0.7s ease both; }
+        .rp-masthead { padding: 0.5rem 0 1rem 0; margin-bottom: 1rem; border-bottom: 1px solid rgba(148,163,184,0.15); animation: fadeUp 0.7s ease both; }
         .rp-title {
-            font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 700; margin: 0; line-height: 1.15;
+            font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 700; margin: 0; line-height: 1.15;
             background: linear-gradient(100deg, #22D3EE, #D946EF 55%, #4ADE80);
             -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .rp-subtitle { color: #94A3B8; font-size: 0.95rem; margin-top: 0.4rem; }
+        .rp-subtitle { color: #94A3B8; font-size: 0.9rem; margin-top: 0.3rem; }
         .rp-section-label {
             font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
             color: #94A3B8; margin: 1.6rem 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(148,163,184,0.15);
@@ -128,7 +154,6 @@ def inject_custom_css():
         unsafe_allow_html=True,
     )
 
-
 def stat_card(label, value):
     st.markdown(
         f'<div class="rp-stat-card"><div class="rp-stat-number">{value}</div>'
@@ -136,27 +161,24 @@ def stat_card(label, value):
         unsafe_allow_html=True,
     )
 
-
 def section_label(text):
     st.markdown(f'<div class="rp-section-label">&#9670; {text}</div>', unsafe_allow_html=True)
 
 
 # ============================================================
-# CACHED RESOURCES
+# 3. CACHED RESOURCES
 # ============================================================
-
 @st.cache_resource
 def get_neo4j_driver():
     return GraphDatabase.driver(
         os.getenv("NEO4J_URI"),
         auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD")),
+        max_connection_lifetime=200
     )
-
 
 @st.cache_resource
 def get_copilot_app():
     return build_graph()
-
 
 def run_query(driver, query, **params):
     try:
@@ -168,11 +190,9 @@ def run_query(driver, query, **params):
         with fresh_driver.session() as session:
             return list(session.run(query, **params))
 
-
 def get_node_counts(driver):
     result = run_query(driver, "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS count")
     return {row["label"]: row["count"] for row in result}
-
 
 def get_top_drugs(driver, limit=10):
     query = """MATCH (p:Paper)-[:MENTIONS]->(d:Drug) RETURN d.name AS name, count(p) AS mentions
@@ -180,13 +200,11 @@ def get_top_drugs(driver, limit=10):
     result = run_query(driver, query, limit=limit)
     return {row["name"]: row["mentions"] for row in result}
 
-
 def get_top_diseases(driver, limit=10):
     query = """MATCH (p:Paper)-[:MENTIONS]->(d:Disease) RETURN d.name AS name, count(p) AS mentions
                ORDER BY mentions DESC LIMIT $limit"""
     result = run_query(driver, query, limit=limit)
     return {row["name"]: row["mentions"] for row in result}
-
 
 def build_graph_html(driver, limit=80):
     query = "MATCH (p:Paper)-[r]-(x) RETURN p, r, x LIMIT $limit"
@@ -216,7 +234,6 @@ def build_graph_html(driver, limit=80):
 # ============================================================
 # PAGE: ASK QUESTIONS
 # ============================================================
-
 def page_ask_questions():
     st.markdown(
         """
@@ -236,21 +253,50 @@ def page_ask_questions():
     if st.button("Ask") and question:
         with st.spinner("Routing and generating answer..."):
             app = get_copilot_app()
+            # We initialize the state dictionary with the keys your backend expects
             result = app.invoke({
-                "question": question, "route": "", "answer": "",
-                "confidence_score": None, "confidence_label": None,
+                "question": question, 
+                "route": "", 
+                "answer": "",
+                "confidence_score": None, 
+                "confidence_label": None,
+                "similarity_score": None  # Added in case your backend passes this
             })
-            st.session_state.chat_history.append(
-                {"question": question, "route": result["route"], "answer": result["answer"]}
-            )
+            
+            # Save all the metrics into the frontend session state
+            st.session_state.chat_history.append({
+                "question": question, 
+                "route": result.get("route", "Unknown"), 
+                "answer": result.get("answer", "No answer generated."),
+                "confidence_score": result.get("confidence_score"),
+                "confidence_label": result.get("confidence_label"),
+                "similarity_score": result.get("similarity_score")
+            })
 
     for entry in reversed(st.session_state.chat_history):
         color = AGENT_COLORS.get(entry["route"], "#94A3B8")
         label = AGENT_LABELS.get(entry["route"], entry["route"])
+        
+        # 1. Start with the main Agent Routing badge
+        badges_html = f'<span class="rp-tag" style="color:{color};">&#9679; {label}</span>'
+        
+        # 2. Add the Confidence Score badge if the backend returned it
+        if entry.get("confidence_score") is not None:
+            # Format to 2 decimal places (e.g., 0.92)
+            c_score = entry["confidence_score"]
+            c_label = entry.get("confidence_label") or ""
+            badges_html += f' <span class="rp-tag" style="color:#A78BFA; margin-left:8px;">&#9889; Conf: {c_score:.2f} {c_label}</span>'
+            
+        # 3. Add the Similarity Score badge if the backend returned it
+        if entry.get("similarity_score") is not None:
+            s_score = entry["similarity_score"]
+            badges_html += f' <span class="rp-tag" style="color:#2DD4BF; margin-left:8px;">&#128269; Sim: {s_score:.2f}</span>'
+
+        # Render the card with the dynamic badges
         st.markdown(
             f"""
             <div class="rp-answer-card">
-                <span class="rp-tag" style="color:{color};">&#9679; {label}</span>
+                <div style="margin-bottom: 0.5rem;">{badges_html}</div>
                 <div class="rp-question">{entry['question']}</div>
                 <div class="rp-answer-body">{entry['answer']}</div>
             </div>
@@ -259,16 +305,7 @@ def page_ask_questions():
         )
 
 
-# ============================================================
-# PAGE: DOCUMENTS
-# ============================================================
-
 def process_upload(uploaded_file):
-    """Runs one uploaded file through the full pipeline: extract text,
-    chunk, embed into the vector store, extract entities, add to the
-    knowledge graph, and record it in Postgres. All ADDITIVE — nothing
-    existing gets cleared."""
-
     status = st.status("Processing your document...", expanded=True)
 
     status.write("Extracting and chunking text...")
@@ -297,7 +334,7 @@ def process_upload(uploaded_file):
     )
 
     status.update(label=f"Done — {uploaded_file.name} added ({len(records)} chunks, {num_entities} entities)", state="complete")
-    st.cache_resource.clear()  # so Overview stats reflect the new data on next view
+    st.cache_resource.clear()
 
 
 def page_documents():
@@ -336,10 +373,6 @@ def page_documents():
                 unsafe_allow_html=True,
             )
 
-
-# ============================================================
-# PAGE: OVERVIEW & GRAPH
-# ============================================================
 
 def page_overview():
     st.markdown(
@@ -385,14 +418,29 @@ def page_overview():
 
 
 # ============================================================
-# APP ENTRY POINT — sidebar navigation
+# 5. RENDER GLOBAL HEADER & RUN NAVIGATION
 # ============================================================
-
 inject_custom_css()
 
+# Global Title on every page
+st.markdown(
+    """
+    <div style="text-align: center; padding-bottom: 0.8rem;">
+        <h1 style="font-family: 'Space Grotesk', sans-serif; font-size: 2.2rem; margin-bottom: 0.2rem; background: linear-gradient(100deg, #22D3EE, #D946EF 55%, #4ADE80); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+            Enterprise AI Research & Knowledge Discovery Platform
+        </h1>
+        <p style="color: #94A3B8; font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; margin-top: 0;">
+            Case Study AI-003 &middot; Document Intelligence & Multi-Agent Reasoning
+        </p>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
+st.divider()
+
 pg = st.navigation([
-    st.Page(page_ask_questions, title="Ask Questions", icon="\U0001F4AC", default=True),
-    st.Page(page_documents, title="Documents", icon="\U0001F4C4"),
-    st.Page(page_overview, title="Overview & Graph", icon="\U0001F4CA"),
+    st.Page(page_ask_questions, title="Ask Questions", icon="💬", default=True),
+    st.Page(page_documents, title="Documents", icon="📄"),
+    st.Page(page_overview, title="Overview & Graph", icon="📊"),
 ])
 pg.run()
