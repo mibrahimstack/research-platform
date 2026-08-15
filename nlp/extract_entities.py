@@ -22,7 +22,7 @@ load_dotenv()
 
 CHUNKS_FILE = "data/processed/chunks.jsonl"
 OUTPUT_FILE = "data/processed/entities.jsonl"
-LLM_MODEL = "llama-3.1-8b-instant"
+LLM_MODEL = "openai/gpt-oss-20b"
 
 EXTRACTION_PROMPT = """You are a biomedical entity extraction system. Extract entities from the text below.
 

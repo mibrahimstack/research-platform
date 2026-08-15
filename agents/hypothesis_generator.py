@@ -22,7 +22,7 @@ from search import search # type: ignore
 
 load_dotenv()
 
-LLM_MODEL = "llama-3.3-70b-versatile"  # same stronger model — this task needs real reasoning too
+LLM_MODEL = "openai/gpt-oss-120b"  # same stronger model — this task needs real reasoning too
 OUTPUT_DIR = "data/processed"
 
 

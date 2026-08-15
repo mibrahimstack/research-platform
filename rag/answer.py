@@ -25,7 +25,7 @@ from search import search
 
 load_dotenv()
 
-LLM_MODEL = "llama-3.1-8b-instant"
+LLM_MODEL = "openai/gpt-oss-20b"
 
 
 def build_context(results):

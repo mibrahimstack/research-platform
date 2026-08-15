@@ -207,23 +207,23 @@ Knowledge Graph      Vector Store (ChromaDB)
 
 ## Tech Stack
 
-| Layer               | Tool                                                         | Why                                                                               |
-| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Backend / scripting | Python                                                       | Core language throughout                                                          |
-| Knowledge Graph     | Neo4j AuraDB (free tier)                                     | Cloud-hosted, no local install needed                                             |
-| Relational DB       | Neon Postgres (free tier)                                    | Cloud-hosted metadata storage                                                     |
-| Vector Store        | ChromaDB                                                     | Local, lightweight semantic search index                                          |
-| Embeddings          | Sentence Transformers (`all-MiniLM-L6-v2`)                   | Free, pretrained, runs on CPU                                                     |
-| LLM                 | Groq API (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`) | Free tier, fast inference                                                         |
-| Agent Orchestration | LangGraph                                                    | Real multi-agent routing, not just if/else logic                                  |
-| Dashboard           | Streamlit + pyvis                                            | Fast to build, interactive graph visualization                                    |
-| NLP                 | Groq LLM-based extraction                                    | Chosen over scispaCy to avoid large local model downloads on constrained hardware |
+| Layer               | Tool                                                     | Why                                                                               |
+| ------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Backend / scripting | Python                                                   | Core language throughout                                                          |
+| Knowledge Graph     | Neo4j AuraDB (free tier)                                 | Cloud-hosted, no local install needed                                             |
+| Relational DB       | Neon Postgres (free tier)                                | Cloud-hosted metadata storage                                                     |
+| Vector Store        | ChromaDB                                                 | Local, lightweight semantic search index                                          |
+| Embeddings          | Sentence Transformers (`all-MiniLM-L6-v2`)               | Free, pretrained, runs on CPU                                                     |
+| LLM                 | Groq API (`llama-3.1-8b-instant`, `openai/gpt-oss-120b`) | Free tier, fast inference                                                         |
+| Agent Orchestration | LangGraph                                                | Real multi-agent routing, not just if/else logic                                  |
+| Dashboard           | Streamlit + pyvis                                        | Fast to build, interactive graph visualization                                    |
+| NLP                 | Groq LLM-based extraction                                | Chosen over scispaCy to avoid large local model downloads on constrained hardware |
 
 ### Design Decisions Worth Noting
 
 - **Cloud-first, laptop-light setup**: Neo4j and Postgres are cloud-hosted rather than installed locally, keeping the local footprint under ~5GB and avoiding RAM pressure on 8GB laptops.
 - **LLM-based NER instead of scispaCy**: given hardware constraints, entity extraction uses the same Groq LLM connection already used elsewhere, rather than downloading large biomedical NLP models.
-- **Model selection by task difficulty**: routing and simple extraction use the faster `llama-3.1-8b-instant`; contradiction detection and hypothesis generation use the larger `llama-3.3-70b-versatile`, after testing showed the smaller model produced weaker, less reliable reasoning on these harder tasks.
+- **Model selection by task difficulty**: routing and simple extraction use the faster `llama-3.1-8b-instant`; contradiction detection and hypothesis generation use the larger `openai/gpt-oss-120b`, after testing showed the smaller model produced weaker, less reliable reasoning on these harder tasks.
 - **Context truncation**: chunks are capped in length before being sent to the LLM to stay within Groq's free-tier tokens-per-minute limits, especially for multi-paper synthesis tasks.
 
 ---

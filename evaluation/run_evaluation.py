@@ -36,7 +36,7 @@ load_dotenv()
 
 DATASET_FILE = os.path.join(os.path.dirname(__file__), "qa_dataset.json")
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
-JUDGE_MODEL = "llama-3.3-70b-versatile"
+JUDGE_MODEL = "openai/gpt-oss-120b"
 
 
 def load_dataset():

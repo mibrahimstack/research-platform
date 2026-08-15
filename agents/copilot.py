@@ -32,7 +32,7 @@ from hypothesis_generator import generate_hypotheses
 from typing import TypedDict, Optional
 load_dotenv()
 
-ROUTER_MODEL = "llama-3.1-8b-instant"
+ROUTER_MODEL = "openai/gpt-oss-20b"
 
 
 class CopilotState(TypedDict):
@@ -193,7 +193,7 @@ from hypothesis_generator import generate_hypotheses
 
 load_dotenv()
 
-ROUTER_MODEL = "llama-3.1-8b-instant"
+ROUTER_MODEL = "openai/gpt-oss-20b"
 
 
 class CopilotState(TypedDict):

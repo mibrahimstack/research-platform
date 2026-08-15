@@ -21,7 +21,7 @@ from db.postgres import close_pool, init_pool
 load_dotenv()
 CHUNKS_FILE = Path("data/processed/chunks.jsonl")
 OUTPUT_FILE = Path("data/processed/claims.jsonl")
-LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "openai/gpt-oss-120b"
 
 PROMPT = """Extract up to three scientifically meaningful claims from this research text.
 Return ONLY JSON: {{"claims": [{{"statement": str, "claim_type": "effect|association|prevalence|safety|mechanism|other", "direction": "beneficial|harmful|positive|negative|neutral|mixed|unknown", "population": str, "intervention": str, "outcome": str, "value_text": str, "confidence": number, "evidence_quote": str}}]}}

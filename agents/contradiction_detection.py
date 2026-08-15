@@ -23,7 +23,7 @@ from search import search # type: ignore
 
 load_dotenv()
 
-LLM_MODEL = "llama-3.3-70b-versatile"  # stronger reasoning model — needed for nuanced contradiction judgment
+LLM_MODEL = "openai/gpt-oss-120b"  # stronger reasoning model — needed for nuanced contradiction judgment
 OUTPUT_DIR = "data/processed"
 
 

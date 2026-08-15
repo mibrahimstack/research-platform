@@ -28,7 +28,7 @@ from search import search # type: ignore
 
 load_dotenv()
 
-LLM_MODEL = "llama-3.1-8b-instant"
+LLM_MODEL = "openai/gpt-oss-20b"
 OUTPUT_DIR = "data/processed"
 
 
@@ -172,7 +172,7 @@ from search import search # type: ignore
 
 load_dotenv()
 
-LLM_MODEL = "llama-3.1-8b-instant"
+LLM_MODEL = "openai/gpt-oss-20b"
 OUTPUT_DIR = "data/processed"
 
 
