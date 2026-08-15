@@ -18,6 +18,7 @@ Four pages:
 import sys
 import os
 import time
+from fpdf import FPDF
 import requests
 import pandas as pd
 import streamlit as st
@@ -244,6 +245,48 @@ def build_graph_html(driver, limit=80):
 
 
 # ============================================================
+# HELPER: PDF GENERATOR
+# ============================================================
+def generate_pdf_bytes(question, agent_label, answer):
+    """Creates a formatted PDF in memory and returns the bytes."""
+    # Explicitly define A4 format (210mm wide)
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.add_page()
+    pdf.set_margins(left=10, top=10, right=10)
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Clean text to prevent encoding errors
+    clean_q = question.encode('latin-1', 'replace').decode('latin-1')
+    clean_ans = answer.encode('latin-1', 'replace').decode('latin-1')
+    clean_label = agent_label.encode('latin-1', 'replace').decode('latin-1')
+    
+    # Title
+    pdf.set_font("helvetica", style="B", size=16)
+    pdf.set_x(10) # Force cursor to left margin
+    pdf.multi_cell(w=190, h=10, text=f"Query: {clean_q}")
+    
+    # Subtitle (Agent)
+    pdf.set_font("helvetica", style="I", size=12)
+    pdf.ln(2)
+    pdf.set_x(10)
+    pdf.multi_cell(w=190, h=10, text=f"Specialist Agent: {clean_label}")
+    
+    # Body Header
+    pdf.set_font("helvetica", style="B", size=14)
+    pdf.ln(5)
+    pdf.set_x(10)
+    pdf.multi_cell(w=190, h=10, text="Response:")
+    
+    # Body Text
+    pdf.set_font("helvetica", size=11)
+    pdf.ln(2)
+    pdf.set_x(10)
+    pdf.multi_cell(w=190, h=6, text=clean_ans)
+    
+    # Return as raw bytes for the Streamlit download button
+    return bytes(pdf.output())
+
+# ============================================================
 # PAGE: ASK QUESTIONS
 # ============================================================
 def page_ask_questions():
@@ -315,10 +358,13 @@ def page_ask_questions():
             "confidence_label": result.get("confidence_label"),
             "similarity_score": result.get("similarity_score")
         })
+        
+        st.rerun()
 
     if st.session_state.chat_history:
-        section_label("Previous Questions")
-        for entry in reversed(st.session_state.chat_history[:-1]):
+        section_label("Conversation History")
+        
+        for i, entry in enumerate(reversed(st.session_state.chat_history)):
             color = AGENT_COLORS.get(entry["route"], "#94A3B8")
             label = AGENT_LABELS.get(entry["route"], entry["route"])
             
@@ -328,7 +374,7 @@ def page_ask_questions():
 
             st.markdown(
                 f"""
-                <div class="rp-answer-card">
+                <div class="rp-answer-card" style="margin-bottom: 0.5rem;">
                     <div style="margin-bottom: 0.5rem;">{badges_html}</div>
                     <div class="rp-question">{entry['question']}</div>
                     <div class="rp-answer-body">{entry['answer']}</div>
@@ -336,6 +382,35 @@ def page_ask_questions():
                 """,
                 unsafe_allow_html=True,
             )
+            
+            # --- EXPORT BUTTONS SIDE-BY-SIDE ---
+            col1, col2, _ = st.columns([1, 1, 3]) # The '3' acts as an empty spacer to push buttons left
+            
+            # 1. Markdown Export
+            md_content = f"# Query: {entry['question']}\n\n**Specialist Agent:** {label}\n\n## Response\n\n{entry['answer']}"
+            with col1:
+                st.download_button(
+                    label="📄 Export as Markdown",
+                    data=md_content,
+                    file_name=f"Research_Export_{len(st.session_state.chat_history) - i}.md",
+                    mime="text/markdown",
+                    key=f"dl_md_{i}",
+                    use_container_width=True
+                )
+                
+            # 2. PDF Export
+            with col2:
+                pdf_bytes = generate_pdf_bytes(entry['question'], label, entry['answer'])
+                st.download_button(
+                    label="📑 Export as PDF",
+                    data=pdf_bytes,
+                    file_name=f"Research_Export_{len(st.session_state.chat_history) - i}.pdf",
+                    mime="application/pdf",
+                    key=f"dl_pdf_{i}",
+                    use_container_width=True
+                )
+            
+            st.write("") # Spacer between history items
 
 # ============================================================
 # PAGE: DOCUMENTS

@@ -30,3 +30,4 @@ pypdf
 
 # NLP/Entity extraction (pure-Python install; heavier ML deps are optional)
 spacy
+fpdf2==2.7.9
