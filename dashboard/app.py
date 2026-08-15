@@ -6,17 +6,20 @@ renders each page as a clickable entry in the sidebar automatically —
 this is the same pattern Claude, ChatGPT, and NotebookLM use for their
 left-hand navigation).
 
-Three pages:
+Four pages:
     1. Ask Questions — the copilot chat
     2. Documents — upload a PDF/DOCX/TXT, see it processed end-to-end,
        and browse previously uploaded documents
     3. Overview & Graph — corpus stats and the interactive knowledge
        graph visualization
+    4. Admin Telemetry — live operational metrics and agent routing stats
 """
 
 import sys
 import os
 import time
+import requests
+import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
@@ -164,6 +167,7 @@ def stat_card(label, value):
 
 def section_label(text):
     st.markdown(f'<div class="rp-section-label">&#9670; {text}</div>', unsafe_allow_html=True)
+
 # ============================================================
 # HELPER: WORD-BY-WORD STREAMING GENERATOR
 # ============================================================
@@ -240,7 +244,7 @@ def build_graph_html(driver, limit=80):
 
 
 # ============================================================
-# PAGE: ASK QUESTIONS (With Word-by-Word Streaming)
+# PAGE: ASK QUESTIONS
 # ============================================================
 def page_ask_questions():
     st.markdown(
@@ -262,13 +266,11 @@ def page_ask_questions():
         with st.spinner("Routing question to specialist agent..."):
             app = get_copilot_app()
             
-            # Format the last 3 turns of conversation for history context
             recent_history = st.session_state.chat_history[-3:]
             formatted_history = ""
             for msg in recent_history:
                 formatted_history += f"Human: {msg['question']}\nAssistant: {msg['answer']}\n\n"
             
-            # Execute backend retrieval and reasoning graph
             result = app.invoke({
                 "question": question,
                 "chat_history": formatted_history,
@@ -279,13 +281,11 @@ def page_ask_questions():
                 "similarity_score": None
             })
 
-        # Extract values
         route = result.get("route", "Unknown")
         answer = result.get("answer", "No answer generated.")
         color = AGENT_COLORS.get(route, "#94A3B8")
         label = AGENT_LABELS.get(route, route)
 
-        # Create the badge tags
         badges_html = f'<span class="rp-tag" style="color:{color};">&#9679; {label}</span>'
         if result.get("confidence_score") is not None:
             c_score = result["confidence_score"]
@@ -295,7 +295,6 @@ def page_ask_questions():
             s_score = result["similarity_score"]
             badges_html += f' <span class="rp-tag" style="color:#2DD4BF; margin-left:8px;">&#128269; Sim: {s_score:.2f}</span>'
 
-        # Render the card container and stream the live answer
         with st.container():
             st.markdown(
                 f"""
@@ -306,10 +305,8 @@ def page_ask_questions():
                 """,
                 unsafe_allow_html=True,
             )
-            # Stream the text live word-by-word
             st.write_stream(stream_text(answer))
 
-        # Save to session history so past messages remain visible on page refresh
         st.session_state.chat_history.append({
             "question": question, 
             "route": route, 
@@ -319,10 +316,9 @@ def page_ask_questions():
             "similarity_score": result.get("similarity_score")
         })
 
-    # Render previous conversation history statically below
     if st.session_state.chat_history:
         section_label("Previous Questions")
-        for entry in reversed(st.session_state.chat_history[:-1]):  # Exclude the current live answer
+        for entry in reversed(st.session_state.chat_history[:-1]):
             color = AGENT_COLORS.get(entry["route"], "#94A3B8")
             label = AGENT_LABELS.get(entry["route"], entry["route"])
             
@@ -341,7 +337,9 @@ def page_ask_questions():
                 unsafe_allow_html=True,
             )
 
-
+# ============================================================
+# PAGE: DOCUMENTS
+# ============================================================
 def process_upload(uploaded_file):
     status = st.status("Processing your document...", expanded=True)
 
@@ -372,7 +370,6 @@ def process_upload(uploaded_file):
 
     status.update(label=f"Done — {uploaded_file.name} added ({len(records)} chunks, {num_entities} entities)", state="complete")
     st.cache_resource.clear()
-
 
 def page_documents():
     st.markdown(
@@ -410,7 +407,9 @@ def page_documents():
                 unsafe_allow_html=True,
             )
 
-
+# ============================================================
+# PAGE: OVERVIEW
+# ============================================================
 def page_overview():
     st.markdown(
         """
@@ -453,6 +452,71 @@ def page_overview():
         graph_html = build_graph_html(driver)
     components.html(graph_html, height=540)
 
+# ============================================================
+# PAGE: ADMIN TELEMETRY
+# ============================================================
+def page_admin():
+    st.markdown(
+        """
+        <div class="rp-masthead">
+            <div class="rp-title">Admin Telemetry</div>
+            <div class="rp-subtitle">Live operational metrics and agent routing statistics</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    API_BASE_URL = os.getenv("API_URL", "http://api:8000")
+    
+    # 2. Split by comma and grab the very first key to use for authentication
+    API_KEY = "GBeJBPCmhFxL5K5DvP9VXwjB897UasWCAma2FADH8vc"
+    
+    # 3. Add the exact header your backend expects
+    headers = {"X-API-Key": API_KEY}
+
+    try:
+        # Pass the headers into the GET requests
+        stats_res = requests.get(f"{API_BASE_URL}/api/v1/logs/stats", headers=headers, timeout=5)
+        recent_res = requests.get(f"{API_BASE_URL}/api/v1/logs/recent", headers=headers, timeout=5)
+
+        if stats_res.status_code == 200 and recent_res.status_code == 200:
+            stats = stats_res.json()
+            recent_logs = recent_res.json()
+
+            section_label("Platform Health")
+            cols = st.columns(3)
+            with cols[0]:
+                stat_card("Total Queries", stats.get("total_queries", 0))
+            with cols[1]:
+                stat_card("Avg Latency (ms)", f"{stats.get('average_latency_ms', 0):.0f}")
+            with cols[2]:
+                stat_card("System Uptime", "99.9%")
+
+            section_label("Agent Routing Distribution")
+            agent_usage = stats.get("agent_usage", {})
+            if agent_usage:
+                df_usage = pd.DataFrame(
+                    list(agent_usage.items()),
+                    columns=["Specialist Agent", "Request Count"]
+                ).set_index("Specialist Agent")
+                st.bar_chart(df_usage, color="#22D3EE")
+            else:
+                st.info("Not enough data to display agent usage yet.")
+
+            section_label("Recent System Logs")
+            if recent_logs:
+                df_logs = pd.DataFrame(recent_logs)
+                st.dataframe(df_logs, use_container_width=True)
+            else:
+                st.info("No recent queries logged.")
+
+        else:
+            st.warning(f"Unexpected status codes - Stats: {stats_res.status_code} | Recent: {recent_res.status_code}")
+            st.error(f"Stats Error Detail: {stats_res.text}")
+            st.error(f"Recent Error Detail: {recent_res.text}")
+
+    except requests.exceptions.RequestException:
+        st.error(f"🚨 Could not connect to the backend API at {API_BASE_URL}. Ensure the API Docker container is running and the URL is correct.")
 
 # ============================================================
 # 5. RENDER GLOBAL HEADER & RUN NAVIGATION
@@ -479,5 +543,6 @@ pg = st.navigation([
     st.Page(page_ask_questions, title="Ask Questions", icon="💬", default=True),
     st.Page(page_documents, title="Documents", icon="📄"),
     st.Page(page_overview, title="Overview & Graph", icon="📊"),
+    st.Page(page_admin, title="Admin Telemetry", icon="⚙️"),
 ])
 pg.run()

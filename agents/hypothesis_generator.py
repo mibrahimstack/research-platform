@@ -41,7 +41,7 @@ def retrieve_diverse_chunks(topic, top_k=12, max_per_paper=1):
             selected.append((doc, meta))
             per_paper_count[paper_id] = count + 1
 
-    return selected
+    return selected, results
 
 
 def build_context(selected_chunks, max_words_per_chunk=150):
@@ -50,15 +50,41 @@ def build_context(selected_chunks, max_words_per_chunk=150):
         words = doc.split()
         truncated = " ".join(words[:max_words_per_chunk])
         block = (
-            f"[Source {i}] Paper: \"{meta['paper_title']}\" "
-            f"(Section: {meta['section']})\n{truncated}"
+            f"--- SOURCE {i} ---\n"
+            f"Paper Title: \"{meta['paper_title']}\"\n"
+            f"Section: {meta['section']}\n"
+            f"Text content:\n{truncated}\n"
+            f"----------------"
         )
         context_blocks.append(block)
     return "\n\n".join(context_blocks)
 
 
+def compute_confidence(results):
+    """
+    Derives a confidence score (0-100) and label (High/Medium/Low) from
+    how closely the retrieved sources matched the question.
+    """
+    distances = results.get("distances", [[]])[0]
+    if not distances:
+        return 0.0, "Low"
+
+    similarities = [1 - d for d in distances]
+    avg_similarity = sum(similarities) / len(similarities)
+
+    if avg_similarity >= 0.5:
+        label = "High"
+    elif avg_similarity >= 0.35:
+        label = "Medium"
+    else:
+        label = "Low"
+
+    score = round(min(avg_similarity / 0.65, 1.0) * 100, 1)
+    return score, label
+
+
 def generate_hypotheses(topic, top_k=12, max_per_paper=1):
-    selected_chunks = retrieve_diverse_chunks(topic, top_k=top_k, max_per_paper=max_per_paper)
+    selected_chunks, raw_results = retrieve_diverse_chunks(topic, top_k=top_k, max_per_paper=max_per_paper)
     context = build_context(selected_chunks)
 
     num_papers = len(set(meta["paper_title"] for _, meta in selected_chunks))
@@ -67,7 +93,7 @@ def generate_hypotheses(topic, top_k=12, max_per_paper=1):
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
     system_prompt = (
-        "You are a research strategist helping scientists identify promising "
+        "You are a strict research strategist helping scientists identify promising "
         "next steps. Based ONLY on the sources provided, produce:\n\n"
         "## Observed Gaps\n"
         "What specific questions do these sources leave unanswered? Be "
@@ -84,10 +110,13 @@ def generate_hypotheses(topic, top_k=12, max_per_paper=1):
         "## Suggested Future Experiments\n"
         "For at least one hypothesis, briefly describe what kind of study "
         "design could test it (e.g. cohort study, RCT, in vitro assay).\n\n"
-        "Ground every gap and question in what the sources actually discuss "
-        "— cite source numbers like [2] when referencing what a source did "
-        "or didn't cover. Do not propose generic hypotheses unrelated to "
-        "what these specific sources are about."
+        "Ground every gap and question in what the sources actually discuss. "
+        "Do not propose generic hypotheses unrelated to what these specific sources are about.\n\n"
+        "CRITICAL CITATION RULES:\n"
+        "1. Every single factual claim, observed gap, or reference to current literature MUST end with an inline citation.\n"
+        "2. Format the citation using the Paper Title exactly as provided in the source block, "
+        "like this: [Source: \"Exact Title of the Paper\"].\n"
+        "3. Do not simply list source numbers at the end. You must embed the citations inline at the end of every sentence."
     )
 
     user_prompt = f"Topic: {topic}\n\nSources:\n\n{context}"
@@ -101,7 +130,12 @@ def generate_hypotheses(topic, top_k=12, max_per_paper=1):
         temperature=0.4,  # slightly higher — some creativity is appropriate here
     )
 
-    return response.choices[0].message.content, selected_chunks
+    base_answer = response.choices[0].message.content
+    c_score, c_label = compute_confidence(raw_results)
+    
+    final_answer = f"{base_answer}\n\n**Confidence:** {c_label} ({c_score}/100)"
+
+    return final_answer, selected_chunks
 
 
 def save_report(topic, report_text):
