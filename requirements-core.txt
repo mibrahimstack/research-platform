@@ -4,6 +4,7 @@ uvicorn[standard]
 python-dotenv
 requests
 pydantic-settings
+chromadb
 
 # Knowledge graph + DB
 neo4j
