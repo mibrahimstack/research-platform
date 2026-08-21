@@ -41,13 +41,29 @@ from nlp.extract_entities import extract_entities_for_paper
 from db.uploads import record_uploaded_document, get_uploaded_documents 
 from db import postgres
 
+from dotenv import load_dotenv
+import os
+import streamlit as st
+
+# 1. Load environment variables FIRST
+load_dotenv()
+
+# 2. Define the cached initialization with fallback
 @st.cache_resource
 def init_postgres():
-    postgres.init_pool(os.getenv("POSTGRES_URL"))
-    return True
+    postgres_url = os.getenv("POSTGRES_URL")
+    if not postgres_url:
+        return False
+    try:
+        postgres.init_pool(postgres_url)
+        return True
+    except Exception as e:
+        print(f"Postgres init failed: {e}")
+        return False
 
-init_postgres()
-load_dotenv()
+# 3. Only initialize if not running in CI / test runner
+if os.getenv("GITHUB_ACTIONS") != "true" and os.getenv("POSTGRES_URL"):
+    init_postgres()
 
 try:
     for _key in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD", "POSTGRES_URL", "GROQ_API_KEY"):
