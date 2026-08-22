@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     neo4j_password: str
     postgres_url: str
     groq_api_key: str
+    
+    # Server configuration (Added to prevent AttributeError in run_services.py)
+    host: str = "0.0.0.0"
+    port: int = 8000
 
     # API authentication — comma-separated list of valid keys, e.g.
     # "key_for_ibrahim,key_for_sohaib". Empty by default so the app
