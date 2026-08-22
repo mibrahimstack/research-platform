@@ -2,27 +2,25 @@
 rag/search.py
 
 Query the vector store with a plain-English question and get back the
-most semantically relevant chunks — this is "semantic search" in action,
-and it's the retrieval half of your RAG pipeline.
+most semantically relevant chunks from Neon PostgreSQL (pgvector).
 
 Run from the project root:
     python rag/search.py "your question here"
 """
 
+import os
 import sys
-import chromadb
+import psycopg2
 from sentence_transformers import SentenceTransformer
 
-VECTOR_STORE_DIR = "data/vector_store"
-COLLECTION_NAME = "research_papers"
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+POSTGRES_URL = os.getenv(
+    "POSTGRES_URL",
+    "postgresql://neondb_owner:npg_qQMsCuedn7I4@ep-dark-block-ay0ito1c.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require"
+)
 
-# Module-level caches: loaded once, reused by every call. This matters a
-# lot once search() is called repeatedly by a running API server instead
-# of once per CLI invocation — reloading a model from disk on every
-# request would make the API needlessly slow.
+# Module-level model cache
 _model = None
-_chroma_client = None
 
 
 def get_model():
@@ -32,26 +30,62 @@ def get_model():
     return _model
 
 
-def get_chroma_client():
-    global _chroma_client
-    if _chroma_client is None:
-        _chroma_client = chromadb.PersistentClient(path=VECTOR_STORE_DIR)
-    return _chroma_client
+def get_db_connection():
+    return psycopg2.connect(POSTGRES_URL)
 
 
-def search(query, top_k=5):
-    client = get_chroma_client()
-    collection = client.get_collection(COLLECTION_NAME)
-
+def search(query: str, top_k: int = 5):
+    """
+    Encodes the search query, queries PostgreSQL using pgvector cosine distance,
+    and returns results in ChromaDB-compatible dictionary format.
+    """
     model = get_model()
-    query_embedding = model.encode([query]).tolist()
+    query_vector = model.encode(query).tolist()
+    vector_str = "[" + ",".join(map(str, query_vector)) + "]"
 
-    results = collection.query(
-        query_embeddings=query_embedding,
-        n_results=top_k,
-    )
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            sql = """
+                SELECT 
+                    id,
+                    paper_id,
+                    title,
+                    chunk_index,
+                    content,
+                    (embedding <=> %s::vector) AS distance
+                FROM paper_embeddings
+                ORDER BY distance ASC
+                LIMIT %s;
+            """
+            cur.execute(sql, (vector_str, top_k))
+            rows = cur.fetchall()
 
-    return results
+            docs = []
+            metadatas = []
+            distances = []
+            ids = []
+
+            for row in rows:
+                row_id, paper_id, title, chunk_idx, content, distance = row
+                ids.append(str(row_id))
+                docs.append(content)
+                metadatas.append({
+                    "paper_id": paper_id,
+                    "paper_title": title,
+                    "section": f"Chunk {chunk_idx}",
+                    "chunk_index": chunk_idx
+                })
+                distances.append(float(distance))
+
+            return {
+                "ids": [ids],
+                "documents": [docs],
+                "metadatas": [metadatas],
+                "distances": [distances]
+            }
+    finally:
+        conn.close()
 
 
 def main():
@@ -60,7 +94,7 @@ def main():
         return
 
     query = " ".join(sys.argv[1:])
-    print(f"Searching for: {query}\n")
+    print(f"Searching Neon for: {query}\n")
 
     results = search(query)
 
@@ -68,8 +102,12 @@ def main():
     metadatas = results["metadatas"][0]
     distances = results["distances"][0]
 
+    if not documents:
+        print("No matching documents found in PostgreSQL database.")
+        return
+
     for i, (doc, meta, dist) in enumerate(zip(documents, metadatas, distances), 1):
-        similarity = 1 - dist
+        similarity = 1.0 - dist
         print(f"--- Result {i} (similarity: {similarity:.2f}) ---")
         print(f"Paper: {meta['paper_title']}")
         print(f"Section: {meta['section']}")
