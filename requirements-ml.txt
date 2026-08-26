@@ -12,3 +12,4 @@ scikit-learn
 scipy
 huggingface_hub
 tokenizers
+torchvision>=0.16.0

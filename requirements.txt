@@ -35,3 +35,5 @@ lxml
 python-docx
 pypdf
 fpdf2==2.7.9
+
+-r requirements-ml.txt
