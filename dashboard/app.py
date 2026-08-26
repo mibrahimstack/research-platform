@@ -48,6 +48,20 @@ import streamlit as st
 # 1. Load environment variables FIRST
 load_dotenv()
 
+# Place near the top of dashboard/app.py or in your startup life-cycle
+@st.cache_resource
+def warmup_system():
+    # 1. Warm up the embedding model
+    from rag.search import get_model, search
+    _ = get_model()
+    # 2. Ping Neon database to wake it up
+    try:
+        search("warmup test", top_k=1)
+    except Exception:
+        pass
+    return True
+
+_ = warmup_system()
 # 2. Define the cached initialization with fallback
 @st.cache_resource
 def init_postgres():
