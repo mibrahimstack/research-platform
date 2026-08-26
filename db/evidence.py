@@ -2,10 +2,30 @@
 
 from __future__ import annotations
 
+import time
 import hashlib
+import psycopg2
+from functools import wraps
 from typing import Iterable
 
 from db.postgres import get_connection
+
+
+def retry_on_operational_error(func):
+    """Decorator to retry database operations if Neon drops the SSL connection mid-query."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        max_retries = 3
+        delay = 1
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except psycopg2.OperationalError:
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                else:
+                    raise
+    return wrapper
 
 
 def chunk_id(document_id: str, chunk_index: int) -> str:
@@ -18,6 +38,7 @@ def claim_id(document_id: str, evidence_chunk_id: str, start: int, end: int, sta
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
 
 
+@retry_on_operational_error
 def create_evidence_tables() -> None:
     """Create the provenance model; safe to call at every API startup."""
     with get_connection() as conn:
@@ -75,6 +96,7 @@ def create_evidence_tables() -> None:
             conn.commit()
 
 
+@retry_on_operational_error
 def upsert_documents(records: Iterable[dict]) -> int:
     count = 0
     with get_connection() as conn:
@@ -82,7 +104,6 @@ def upsert_documents(records: Iterable[dict]) -> int:
             return 0
         with conn.cursor() as cur:
             for record in records:
-                document_id = record["document_id"]
                 cur.execute("""
                     INSERT INTO documents (document_id, pmcid, title, doi, journal, publication_year, source_path)
                     VALUES (%(document_id)s, %(pmcid)s, %(title)s, %(doi)s, %(journal)s, %(publication_year)s, %(source_path)s)
@@ -96,6 +117,7 @@ def upsert_documents(records: Iterable[dict]) -> int:
     return count
 
 
+@retry_on_operational_error
 def upsert_chunks(records: Iterable[dict]) -> int:
     count = 0
     with get_connection() as conn:
@@ -115,6 +137,7 @@ def upsert_chunks(records: Iterable[dict]) -> int:
     return count
 
 
+@retry_on_operational_error
 def upsert_claims(records: Iterable[dict]) -> int:
     """Store claims only when their quote and span are valid for the source chunk."""
     count = 0
@@ -151,6 +174,7 @@ def upsert_claims(records: Iterable[dict]) -> int:
     return count
 
 
+@retry_on_operational_error
 def get_claims_for_documents(document_ids: list[str], limit: int = 30) -> list[dict]:
     """Fetch source-verified claims for reasoning agents; no database means a safe fallback."""
     if not document_ids:

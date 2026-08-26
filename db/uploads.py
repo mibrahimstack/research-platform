@@ -11,9 +11,28 @@ Requires db/postgres.py to already expose a get_connection() context
 manager (it does, from earlier in the project).
 """
 
+import time
+import psycopg2
+from functools import wraps
 from db.postgres import get_connection
 
+def retry_on_operational_error(func):
+    """Decorator to retry database operations if Neon drops the SSL connection."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        max_retries = 3
+        delay = 1
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except psycopg2.OperationalError:
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                else:
+                    raise
+    return wrapper
 
+@retry_on_operational_error
 def _create_table_if_missing():
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -30,7 +49,7 @@ def _create_table_if_missing():
             """)
             conn.commit()
 
-
+@retry_on_operational_error
 def record_uploaded_document(paper_id, filename, title, num_chunks, num_entities):
     _create_table_if_missing()
     with get_connection() as conn:
@@ -47,7 +66,7 @@ def record_uploaded_document(paper_id, filename, title, num_chunks, num_entities
             )
             conn.commit()
 
-
+@retry_on_operational_error
 def get_uploaded_documents():
     _create_table_if_missing()
     with get_connection() as conn:
