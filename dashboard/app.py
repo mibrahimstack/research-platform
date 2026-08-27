@@ -561,12 +561,14 @@ def page_admin():
             with cols[0]:
                 stat_card("Total Queries", stats.get("total_queries", 0))
             with cols[1]:
-                stat_card("Avg Latency (ms)", f"{stats.get('average_latency_ms', 0):.0f}")
+                # FIX 1: Updated key to match database payload
+                stat_card("Avg Latency (ms)", f"{stats.get('avg_latency_ms', 0):.0f}")
             with cols[2]:
                 stat_card("System Uptime", "99.9%")
 
             section_label("Agent Routing Distribution")
-            agent_usage = stats.get("agent_usage", {})
+            # FIX 2: Updated key to match database payload
+            agent_usage = stats.get("queries_by_agent", {})
             if agent_usage:
                 df_usage = pd.DataFrame(
                     list(agent_usage.items()),
