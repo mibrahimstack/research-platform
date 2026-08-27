@@ -1,18 +1,12 @@
 """
 dashboard/app.py
 
-Multi-page dashboard with sidebar navigation (Streamlit's st.navigation
-renders each page as a clickable entry in the sidebar automatically —
-this is the same pattern Claude, ChatGPT, and NotebookLM use for their
-left-hand navigation).
-
+Multi-page dashboard with sidebar navigation.
 Four pages:
     1. Ask Questions — the copilot chat
-    2. Documents — upload a PDF/DOCX/TXT, see it processed end-to-end,
-       and browse previously uploaded documents
-    3. Overview & Graph — corpus stats and the interactive knowledge
-       graph visualization
-    4. Admin Telemetry — live operational metrics and agent routing stats
+    2. Documents — upload and process files
+    3. Overview & Graph — corpus stats
+    4. Admin Telemetry — live operational metrics
 """
 
 import sys
@@ -33,7 +27,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "agents"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
 
-from agents.copilot import build_graph
 from ingestion.upload_processor import process_uploaded_file 
 from rag.vector_store_writer import add_document_to_vector_store 
 from knowledge_graph.graph_writer import add_paper_to_graph 
@@ -41,28 +34,24 @@ from nlp.extract_entities import extract_entities_for_paper
 from db.uploads import record_uploaded_document, get_uploaded_documents 
 from db import postgres
 
-from dotenv import load_dotenv
-import os
-import streamlit as st
-
 # 1. Load environment variables FIRST
 load_dotenv()
 
-# Place near the top of dashboard/app.py or in your startup life-cycle
+# Set Global API Variables to point to Railway
+API_BASE_URL = os.getenv("API_URL", "https://research-platform-production-0df2.up.railway.app")
+API_KEY = os.getenv("API_KEY", "GBeJBPCmhFxL5K5DvP9VXwjB897UasWCAma2FADH8vc")
+
 @st.cache_resource
 def warmup_system():
-    # 1. Warm up the embedding model
-    from rag.search import get_model, search
-    _ = get_model()
-    # 2. Ping Neon database to wake it up
+    # Warmup ping to Railway to ensure the backend is awake
     try:
-        search("warmup test", top_k=1)
+        requests.get(f"{API_BASE_URL}/docs", timeout=5)
     except Exception:
         pass
     return True
 
 _ = warmup_system()
-# 2. Define the cached initialization with fallback
+
 @st.cache_resource
 def init_postgres():
     postgres_url = os.getenv("POSTGRES_URL")
@@ -75,7 +64,6 @@ def init_postgres():
         print(f"Postgres init failed: {e}")
         return False
 
-# 3. Only initialize if not running in CI / test runner
 if os.getenv("GITHUB_ACTIONS") != "true" and os.getenv("POSTGRES_URL"):
     init_postgres()
 
@@ -124,6 +112,7 @@ AGENT_COLORS = {
     "literature_review": "#4ADE80",
     "contradiction": "#FB7185",
     "hypothesis": "#D946EF",
+    "error": "#EF4444",
 }
 
 AGENT_LABELS = {
@@ -131,6 +120,7 @@ AGENT_LABELS = {
     "literature_review": "Literature Review",
     "contradiction": "Contradiction Check",
     "hypothesis": "Hypothesis Generation",
+    "error": "System Error",
 }
 
 def inject_custom_css():
@@ -199,14 +189,10 @@ def stat_card(label, value):
 def section_label(text):
     st.markdown(f'<div class="rp-section-label">&#9670; {text}</div>', unsafe_allow_html=True)
 
-# ============================================================
-# HELPER: WORD-BY-WORD STREAMING GENERATOR
-# ============================================================
 def stream_text(text: str):
-    """Yields text word-by-word with a micro-delay for a smooth typing effect."""
     for word in text.split(" "):
         yield word + " "
-        time.sleep(0.015)  # Micro-delay between words
+        time.sleep(0.015) 
 
 # ============================================================
 # 3. CACHED RESOURCES
@@ -218,10 +204,6 @@ def get_neo4j_driver():
         auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD")),
         max_connection_lifetime=200
     )
-
-@st.cache_resource
-def get_copilot_app():
-    return build_graph()
 
 def run_query(driver, query, **params):
     try:
@@ -274,46 +256,34 @@ def build_graph_html(driver, limit=80):
     return net.generate_html()
 
 
-# ============================================================
-# HELPER: PDF GENERATOR
-# ============================================================
 def generate_pdf_bytes(question, agent_label, answer):
-    """Creates a formatted PDF in memory and returns the bytes."""
-    # Explicitly define A4 format (210mm wide)
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.add_page()
     pdf.set_margins(left=10, top=10, right=10)
     pdf.set_auto_page_break(auto=True, margin=15)
     
-    # Clean text to prevent encoding errors
     clean_q = question.encode('latin-1', 'replace').decode('latin-1')
     clean_ans = answer.encode('latin-1', 'replace').decode('latin-1')
     clean_label = agent_label.encode('latin-1', 'replace').decode('latin-1')
     
-    # Title
     pdf.set_font("helvetica", style="B", size=16)
-    pdf.set_x(10) # Force cursor to left margin
+    pdf.set_x(10)
     pdf.multi_cell(w=190, h=10, text=f"Query: {clean_q}")
     
-    # Subtitle (Agent)
     pdf.set_font("helvetica", style="I", size=12)
     pdf.ln(2)
     pdf.set_x(10)
     pdf.multi_cell(w=190, h=10, text=f"Specialist Agent: {clean_label}")
     
-    # Body Header
     pdf.set_font("helvetica", style="B", size=14)
     pdf.ln(5)
     pdf.set_x(10)
     pdf.multi_cell(w=190, h=10, text="Response:")
     
-    # Body Text
     pdf.set_font("helvetica", size=11)
     pdf.ln(2)
     pdf.set_x(10)
     pdf.multi_cell(w=190, h=6, text=clean_ans)
-    
-    # Return as raw bytes for the Streamlit download button
     return bytes(pdf.output())
 
 # ============================================================
@@ -336,36 +306,47 @@ def page_ask_questions():
     question = st.text_input("Your question", placeholder="e.g. summarize research on SGLT2 inhibitors", label_visibility="collapsed")
 
     if st.button("Ask") and question:
-        with st.spinner("Routing question to specialist agent..."):
-            app = get_copilot_app()
-            
-            recent_history = st.session_state.chat_history[-3:]
-            formatted_history = ""
-            for msg in recent_history:
-                formatted_history += f"Human: {msg['question']}\nAssistant: {msg['answer']}\n\n"
-            
-            result = app.invoke({
-                "question": question,
-                "chat_history": formatted_history,
-                "route": "", 
-                "answer": "",
-                "confidence_score": None, 
-                "confidence_label": None,
-                "similarity_score": None
-            })
+        with st.spinner("Routing question to Railway backend..."):
+            try:
+                # 1. SEND HTTP POST REQUEST TO RAILWAY INSTEAD OF RUNNING LOCALLY
+                headers = {
+                    "X-API-Key": API_KEY,
+                    "Content-Type": "application/json"
+                }
+                
+                # Make the API call to your newly fixed endpoint
+                res = requests.post(
+                    f"{API_BASE_URL}/api/v1/copilot",
+                    json={"query": question},
+                    headers=headers,
+                    timeout=120  # Gives LLM up to 2 minutes to generate
+                )
+                
+                if res.status_code == 200:
+                    data = res.json()
+                    route = data.get("routed_to", "Unknown")
+                    answer = data.get("answer", "No answer generated by backend.")
+                    c_score = data.get("confidence_score")
+                    c_label = data.get("confidence_label")
+                    s_score = data.get("similarity_score")
+                else:
+                    route = "error"
+                    answer = f"Backend returned an error ({res.status_code}): {res.text}"
+                    c_score, c_label, s_score = None, None, None
 
-        route = result.get("route", "Unknown")
-        answer = result.get("answer", "No answer generated.")
+            except Exception as e:
+                route = "error"
+                answer = f"Failed to reach Railway backend API. Ensure the backend is running. Error: {str(e)}"
+                c_score, c_label, s_score = None, None, None
+
         color = AGENT_COLORS.get(route, "#94A3B8")
         label = AGENT_LABELS.get(route, route)
 
         badges_html = f'<span class="rp-tag" style="color:{color};">&#9679; {label}</span>'
-        if result.get("confidence_score") is not None:
-            c_score = result["confidence_score"]
-            c_label = result.get("confidence_label") or ""
-            badges_html += f' <span class="rp-tag" style="color:#A78BFA; margin-left:8px;">&#9889; Conf: {c_score:.2f} {c_label}</span>'
-        if result.get("similarity_score") is not None:
-            s_score = result["similarity_score"]
+        if c_score is not None:
+            c_label_text = c_label or ""
+            badges_html += f' <span class="rp-tag" style="color:#A78BFA; margin-left:8px;">&#9889; Conf: {c_score:.2f} {c_label_text}</span>'
+        if s_score is not None:
             badges_html += f' <span class="rp-tag" style="color:#2DD4BF; margin-left:8px;">&#128269; Sim: {s_score:.2f}</span>'
 
         with st.container():
@@ -384,16 +365,15 @@ def page_ask_questions():
             "question": question, 
             "route": route, 
             "answer": answer,
-            "confidence_score": result.get("confidence_score"),
-            "confidence_label": result.get("confidence_label"),
-            "similarity_score": result.get("similarity_score")
+            "confidence_score": c_score,
+            "confidence_label": c_label,
+            "similarity_score": s_score
         })
         
         st.rerun()
 
     if st.session_state.chat_history:
         section_label("Conversation History")
-        
         for i, entry in enumerate(reversed(st.session_state.chat_history)):
             color = AGENT_COLORS.get(entry["route"], "#94A3B8")
             label = AGENT_LABELS.get(entry["route"], entry["route"])
@@ -413,10 +393,7 @@ def page_ask_questions():
                 unsafe_allow_html=True,
             )
             
-            # --- EXPORT BUTTONS SIDE-BY-SIDE ---
-            col1, col2, _ = st.columns([1, 1, 3]) # The '3' acts as an empty spacer to push buttons left
-            
-            # 1. Markdown Export
+            col1, col2, _ = st.columns([1, 1, 3])
             md_content = f"# Query: {entry['question']}\n\n**Specialist Agent:** {label}\n\n## Response\n\n{entry['answer']}"
             with col1:
                 st.download_button(
@@ -428,7 +405,6 @@ def page_ask_questions():
                     use_container_width=True
                 )
                 
-            # 2. PDF Export
             with col2:
                 pdf_bytes = generate_pdf_bytes(entry['question'], label, entry['answer'])
                 st.download_button(
@@ -439,8 +415,7 @@ def page_ask_questions():
                     key=f"dl_pdf_{i}",
                     use_container_width=True
                 )
-            
-            st.write("") # Spacer between history items
+            st.write("") 
 
 # ============================================================
 # PAGE: DOCUMENTS
@@ -571,16 +546,9 @@ def page_admin():
         unsafe_allow_html=True,
     )
 
-    API_BASE_URL = os.getenv("API_URL", "http://api:8000")
-    
-    # 2. Split by comma and grab the very first key to use for authentication
-    API_KEY = "GBeJBPCmhFxL5K5DvP9VXwjB897UasWCAma2FADH8vc"
-    
-    # 3. Add the exact header your backend expects
     headers = {"X-API-Key": API_KEY}
 
     try:
-        # Pass the headers into the GET requests
         stats_res = requests.get(f"{API_BASE_URL}/api/v1/logs/stats", headers=headers, timeout=5)
         recent_res = requests.get(f"{API_BASE_URL}/api/v1/logs/recent", headers=headers, timeout=5)
 
@@ -628,7 +596,6 @@ def page_admin():
 # ============================================================
 inject_custom_css()
 
-# Global Title on every page
 st.markdown(
     """
     <div style="text-align: center; padding-bottom: 0.8rem;">
