@@ -150,7 +150,9 @@ def generate_literature_review(topic, top_k=12, max_per_paper=1):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.3,
+            temperature=0.6,
+            max_tokens=2000, # Added a max length
+            stop=["## Conclusion", "Confidence:"]
         )
         base_answer = response.choices[0].message.content
         
