@@ -19,7 +19,7 @@ from groq import Groq
 from db.evidence import get_claims_for_documents
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
-from search import search # type: ignore
+from search import search 
 
 load_dotenv()
 

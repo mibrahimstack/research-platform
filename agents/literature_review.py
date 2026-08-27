@@ -20,11 +20,11 @@ Run from the project root:
 
 import sys
 import os
-from dotenv import load_dotenv # type:ignore
-from groq import Groq # type:ignore
+from dotenv import load_dotenv 
+from groq import Groq 
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
-from search import search # type: ignore
+from search import search 
 
 load_dotenv()
 
