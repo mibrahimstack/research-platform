@@ -1,388 +1,217 @@
-# Research Platform — Setup Guide
-
-Follow these steps in order. Don't skip the "test_connections.py" step —
-it's your checkpoint that the environment actually works before you
-write any real project code.
-
-## 1. Activate your virtual environment
-
-```bash
-# from inside this folder
-python -m venv venv          # only if venv/ doesn't exist yet
-source venv/bin/activate      # Mac/Linux
-venv\Scripts\Activate.ps1     # Windows PowerShell
-```
-
-## 2. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-For local development and the test suite, install the smaller development
-profile as well:
-
-```bash
-pip install -r requirements-dev.txt
-python -m pytest -q
-```
-
-## 3. Create your free cloud accounts
-
-You need three free accounts. Do all three before writing code.
-
-### Neo4j AuraDB (knowledge graph)
-
-1. Go to https://neo4j.com/cloud/aura-free/ and sign up
-2. Create a new free instance
-3. Save the generated password immediately — it's shown only once
-4. Copy the connection URI (starts with `neo4j+s://`)
-
-### Postgres — Neon or Supabase (relational data)
-
-1. Go to https://neon.tech or https://supabase.com and sign up
-2. Create a new project/database
-3. Copy the connection string (starts with `postgresql://`)
-
-### Groq (LLM API)
-
-1. Go to https://console.groq.com/keys and sign up
-2. Generate an API key
-
-## 4. Fill in your .env file
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and paste in the three values you just collected.
-Never commit this file to Git — it's already in `.gitignore`.
-
-## 5. Verify everything works
-
-```bash
-python test_connections.py
-```
-
-You should see `[PASS]` for all three services. If something fails,
-re-check the value in `.env` before doing anything else — don't move
-on to writing project code until this passes.
-
-## 6. Run locally with Docker Compose
-
-If you want a reproducible local development environment, use Docker Compose.
-This starts the API, dashboard, Postgres, and Neo4j together in containers.
-
-1. Copy the provided environment template:
-
-```bash
-cp .env.example .env
-```
-
-2. Update `.env` for local Docker if you want to use the included services:
-
-```text
-NEO4J_URI=bolt://neo4j:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=test
-POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/research
-GROQ_API_KEY=your_groq_key_here
-```
-
-3. Start the stack:
-
-```bash
-docker compose up --build
-```
-
-4. Open the services:
-
-- API: http://127.0.0.1:8000/docs
-- Dashboard: http://127.0.0.1:8501
-
-5. Stop the stack with:
-
-```bash
-docker compose down
-```
-
-Redis is included in the Compose stack as the API cache. It is optional for
-local scripts: if unavailable, the API remains functional but reports Redis as
-degraded and skips cache reads/writes.
-
-## 7. Get your dataset
-
-Use the `fetch_papers.py` script (from the earlier step) to download
-your topic's papers into `data/papers/`.
-
-## Folder structure
-
-```
-research-platform/
-├── ingestion/         # PDF/XML parsing, chunking
-├── nlp/                # NER extraction
-├── knowledge_graph/    # Neo4j insertion + queries
-├── rag/                # embeddings, vector store, retrieval
-├── agents/             # LangGraph copilot, reasoning chains
-├── api/                # FastAPI routes
-├── dashboard/           # Streamlit dashboard
-├── notebooks/           # Jupyter — experimentation only
-└── data/papers/         # downloaded papers
-```
-
-## What to build first
-
-Once `test_connections.py` passes, start with `ingestion/` — write a
-function that reads one downloaded XML paper and extracts clean text.
-Get that working on ONE paper before scaling to all of them.
-
-#####################################################################################################
 
 # Enterprise AI Research & Knowledge Discovery Platform
 
 **Ezitech Engineering Framework — Industry Case Study AI-003**
 
-A working prototype AI research assistant that ingests scientific papers, builds a knowledge graph of the entities and relationships within them, and answers researcher questions through a multi-agent AI system with citation-backed, explainable answers.
+An enterprise-grade, full-stack AI research assistant that ingests scientific biomedical papers, constructs an interconnected knowledge graph of entities and relationships, and answers complex researcher queries via an autonomous multi-agent system with verified, citation-backed evidence provenance.
 
-Built by [Your Name] and Sohaib Khattak as a 4-week Ezitech internship project.
+Built by Muhammad Ibrahim and Muhammad Sohaib as a 4-week Ezitech internship project.
 
 ---
 
-## What This Project Does
+##  What This Project Does
 
 Given a collection of biomedical research papers, this system can:
 
-- **Ingest** papers (PDF/XML) and break them into clean, structured text chunks
-- **Extract entities** — diseases, drugs, genes, and organizations — from each paper using LLM-based Named Entity Recognition
-- **Build a knowledge graph** in Neo4j connecting papers, authors, and the entities they discuss
-- **Search semantically** — find relevant information by meaning, not just keyword matching
-- **Answer questions** with citations back to the exact source paper and section
-- **Generate literature reviews** synthesizing findings across multiple papers
-- **Detect contradictions** — flag genuine disagreements between studies
-- **Generate research hypotheses** — propose new research questions based on gaps in the literature
-- **Route automatically** — a LangGraph-based AI Copilot agent reads a plain-English question and decides which of the above capabilities to use
-- **Visualize everything** in an interactive Streamlit dashboard
-
-This prototype was built at a scale of ~100 real, open-access papers rather than the case study's full enterprise scale (15M papers, 500TB) — the goal was to demonstrate the same architecture end-to-end, not to replicate production infrastructure. See "Design Decisions" below for why.
+*   **Ingest** papers (PDF/XML) and break them into clean, structured text chunks.
+*   **Extract entities** — diseases, drugs, genes, and organizations — using LLM-based Named Entity Recognition.
+*   **Build a knowledge graph** in Neo4j connecting papers, authors, and the entities they discuss.
+*   **Search semantically** — find relevant information by meaning, not just keyword matching.
+*   **Answer questions** with strict citations back to the exact source paper and section.
+*   **Generate literature reviews** synthesizing findings across multiple papers.
+*   **Detect contradictions** — flag genuine disagreements between studies.
+*   **Generate research hypotheses** — propose new research questions based on gaps in the literature.
+*   **Route automatically** — a LangGraph-based AI Copilot agent reads a plain-English question and decides which of the above capabilities to use.
+*   **Visualize everything** in an interactive Streamlit dashboard.
 
 ---
 
-## Architecture
+##  Architecture & Data Flow
 
-```
-Raw Papers (XML)
-      │
-      ▼
-Ingestion & Chunking ──────────► PostgreSQL (metadata, logs)
-      │
-      ├──────────────────┐
-      ▼                  ▼
-NER Extraction      Embeddings (Sentence Transformers)
-      │                  │
-      ▼                  ▼
-Knowledge Graph      Vector Store (ChromaDB)
-   (Neo4j)                │
-      │                  ▼
-      │            Semantic Search / RAG Retrieval
-      │                  │
-      └──────────┬───────┘
-                 ▼
-      AI Copilot Agent (LangGraph Router)
-                 │
-       ┌─────────┼─────────┬──────────────┐
-       ▼         ▼         ▼              ▼
-      QA    Lit. Review  Contradiction  Hypothesis
-   (RAG)     Generator    Detection     Generator
-       │         │         │              │
-       └─────────┴─────────┴──────────────┘
-                 │
-                 ▼
-      Explainability Layer (citations, sources)
-                 │
-                 ▼
-      Streamlit Dashboard (stats, graph, chat)
-```
+```text
+                      Raw Papers (PDF / XML / DOCX)
+                                    │
+                                    ▼
+                      Ingestion & Text Chunking
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  ▼                                   ▼
+          Persistent Corpus                  Embeddings Generation
+          (PostgreSQL Database)             (Sentence Transformers)
+                  │                                   │
+                  ├─────────────────┐                 ▼
+                  ▼                 ▼            Vector Store
+             LLM-Based NER     Claim Span        (ChromaDB)
+             (Groq Engine)     Extraction             │
+                  │                 │                 │
+                  ▼                 ▼                 ▼
+          Knowledge Graph     Evidence Proof     Semantic Search
+          (Neo4j AuraDB)      Trail Storage         Retrieval
+                  │                 │                 │
+                  └─────────┬───────┴─────────────────┘
+                            ▼
+               LangGraph AI Copilot Router
+                            │
+        ┌───────────────┬───┴───────────┬────────────────┐
+        ▼               ▼               ▼                ▼
+    Direct QA       Literature    Contradiction     Hypothesis
+      Agent       Synthesis Agent Detection Agent  Generation Agent
+        │               │               │                │
+        └───────────────┼───────────────┴────────────────┘
+                        ▼
+            Explainability & Citation Layer
+                        │
+                        ▼
+      FastAPI Core Engine (with Redis Caching)
+                        │
+                        ▼
+       Interactive Streamlit Research Dashboard
 
----
 
-## Tech Stack
+##  Technology Stack & Design Decisions
 
-| Layer               | Tool                                                         | Why                                                                               |
-| ------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Backend / scripting | Python                                                       | Core language throughout                                                          |
-| Knowledge Graph     | Neo4j AuraDB (free tier)                                     | Cloud-hosted, no local install needed                                             |
-| Relational DB       | Neon Postgres (free tier)                                    | Cloud-hosted metadata storage                                                     |
-| Vector Store        | ChromaDB                                                     | Local, lightweight semantic search index                                          |
-| Embeddings          | Sentence Transformers (`all-MiniLM-L6-v2`)                   | Free, pretrained, runs on CPU                                                     |
-| LLM                 | Groq API (`llama-3.1-8b-instant`, `llama-3.3-70b-versatile`) | Free tier, fast inference                                                         |
-| Agent Orchestration | LangGraph                                                    | Real multi-agent routing, not just if/else logic                                  |
-| Dashboard           | Streamlit + pyvis                                            | Fast to build, interactive graph visualization                                    |
-| NLP                 | Groq LLM-based extraction                                    | Chosen over scispaCy to avoid large local model downloads on constrained hardware |
+| Layer | Technology | Role & Justification |
+| :--- | :--- | :--- |
+| **Frontend** | Streamlit + PyVis | Interactive researcher portal with dynamic, force-directed graph visualization. |
+| **API Engine** | FastAPI | Asynchronous, high-throughput REST API with OpenAPI documentation. |
+| **Orchestration** | LangGraph / LangChain | Stateful multi-agent planning, conditional routing, and fallback handling. |
+| **LLM Inference** | Groq API (`gpt-oss-120b`, `qwen3.6-27b`) | Ultra-fast inference routing; complex reasoning tasks use advanced high-parameter models. |
+| **Vector Store** | ChromaDB | Local, lightweight semantic search index with cosine similarity. |
+| **Embeddings** | Sentence Transformers (`all-MiniLM-L6-v2`) | Free, pretrained, runs efficiently on CPU for text vectorization. |
+| **Knowledge Graph** | Neo4j AuraDB (Free Tier) | Native graph database storing and mapping interconnected biomedical entities. |
+| **Relational DB** | PostgreSQL (Neon) + SQLAlchemy | Persistent metadata storage, claim provenance tracking, and telemetry logs. |
+| **Caching Layer** | Redis | In-memory caching for vector queries, graph metrics, and API responses. |
+| **Containerization**| Docker & Docker Compose | Multi-container environment isolation ensuring seamless cross-platform execution. |
+| **Tunneling** | Ngrok | Secure localhost exposure for live public demonstrations. |
 
 ### Design Decisions Worth Noting
+* **Cloud-first, laptop-light setup:** Neo4j and Postgres are cloud-hosted to keep the local footprint under ~5GB and avoid RAM pressure on consumer hardware.
+* **Advanced Model Routing:** Upgraded the inference engine to dynamically route tasks to `gpt-oss-120b` and `qwen3.6-27b`, utilizing their advanced reasoning capabilities for complex contradiction detection and hypothesis generation.
+* **LLM-Based NER:** Entity extraction leverages the cloud LLM connection to avoid downloading massive local biomedical NLP models (e.g., scispaCy).
+* **Context Truncation:** Document chunks are mathematically capped in length before being sent to the LLM to operate reliably within free-tier API token constraints during multi-paper synthesis.
 
-- **Cloud-first, laptop-light setup**: Neo4j and Postgres are cloud-hosted rather than installed locally, keeping the local footprint under ~5GB and avoiding RAM pressure on 8GB laptops.
-- **LLM-based NER instead of scispaCy**: given hardware constraints, entity extraction uses the same Groq LLM connection already used elsewhere, rather than downloading large biomedical NLP models.
-- **Model selection by task difficulty**: routing and simple extraction use the faster `llama-3.1-8b-instant`; contradiction detection and hypothesis generation use the larger `llama-3.3-70b-versatile`, after testing showed the smaller model produced weaker, less reliable reasoning on these harder tasks.
-- **Context truncation**: chunks are capped in length before being sent to the LLM to stay within Groq's free-tier tokens-per-minute limits, especially for multi-paper synthesis tasks.
-
----
-
-## Project Structure
-
-```
 research-platform/
-├── ingestion/
-│   ├── parse_paper.py       # Parses one paper's XML into chunks
-│   └── batch_ingest.py      # Runs parsing across all downloaded papers
-├── nlp/
-│   └── extract_entities.py  # LLM-based entity extraction
-├── knowledge_graph/
-│   └── build_graph.py       # Inserts papers/authors/entities into Neo4j
-├── rag/
-│   ├── build_vector_store.py # Embeds chunks into ChromaDB
-│   ├── search.py              # Semantic search over the vector store
-│   └── answer.py               # RAG: retrieval + cited LLM answer
-├── agents/
-│   ├── literature_review.py       # Multi-paper synthesis
-│   ├── contradiction_detection.py # Cross-paper disagreement detection
-│   ├── hypothesis_generator.py    # Research gap / hypothesis generation
-│   └── copilot.py                  # LangGraph router tying all agents together
-├── dashboard/
-│   └── app.py                # Streamlit dashboard
-├── fetch_papers.py           # Downloads open-access papers from Europe PMC
-├── test_connections.py       # Verifies Neo4j/Postgres/Groq connectivity
-├── requirements.txt
-└── .env.example
-```
+├── ingestion/               # XML/PDF parsing, chunking, and persistence
+├── nlp/                     # LLM-based entity and claim extraction
+├── knowledge_graph/         # Neo4j insertion and queries
+├── rag/                     # Embeddings, vector store, semantic search
+├── agents/                  # LangGraph copilot and reasoning chains
+├── api/                     # FastAPI core engine
+├── dashboard/               # Streamlit UI
+├── data/papers/             # Downloaded dataset
+├── docker-compose.yml       # Production/Local multi-container spec
+├── requirements.txt         # Production dependencies
+└── .env.example             # Environment configuration template
 
----
+Setup & Deployment Guide
+Follow these steps in order to run the platform on your local machine. Do not skip the test_connections.py step—it acts as your verification checkpoint.
 
-## Setup & Deployment Guide
+1. Prerequisites & Cloud Accounts
+Ensure you have Docker Desktop (for Option A) or Python 3.10+ (for Option B) installed. You will need three free cloud accounts:
 
-### 1. Prerequisites
+Neo4j AuraDB: Sign up at https://neo4j.com/cloud/aura-free/. Create a free instance, save the one-time password immediately, and copy the connection URI (neo4j+s://).
 
-Python 3.10+, Git, and free accounts for Neo4j AuraDB, Neon (Postgres), and Groq.
+PostgreSQL: Sign up at Neon.tech or Supabase.com. Create a database and copy the connection string (postgresql://).
 
-### 2. Environment setup
+Groq: Sign up at https://console.groq.com/keys to generate an LLM API key.
 
-```bash
-python -m venv venv
-# Windows:
-.\venv\Scripts\Activate.ps1
-# Mac/Linux:
-source venv/bin/activate
+2. Configure Your Environment
+Clone the repository, then copy the environment template:
 
-pip install -r requirements.txt
+Bash
 cp .env.example .env
-# fill in .env with your Neo4j, Postgres, and Groq credentials
-```
+Open .env and paste your specific credentials:
 
-### 3. Verify setup
+Plaintext
+GROQ_API_KEY=your_groq_key_here
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_neo4j_password_here
+POSTGRES_URL=postgresql://postgres:password@postgres:5432/research
+3. Launching the Application (Choose Option A or B)
+Option A: Run via Docker Compose (Recommended)
+This is the most reproducible method. It spins up the API, Dashboard, and caching layers automatically.
 
-```bash
-python test_connections.py
-```
+Bash
+# Build and start the stack in the background
+docker compose up --build -d
+API Docs: http://127.0.0.1:8000/docs
 
-All three services should show `[PASS]` before continuing.
+Dashboard UI: http://127.0.0.1:8501
 
-### 4. Build the pipeline, in order
+To stop the application, run: docker compose down
 
-```bash
-python fetch_papers.py                    # download papers
-python ingestion/batch_ingest.py          # parse and chunk them
-python ingestion/persist_corpus.py        # persist documents and chunks with source IDs
-python rag/build_vector_store.py          # build semantic search index
-python nlp/extract_entities.py            # extract entities via LLM
-python nlp/extract_claims.py              # extract claims with exact source spans
-python knowledge_graph/build_graph.py     # build the Neo4j knowledge graph
-```
+Option B: Run Locally (Native Python)
+Activate your virtual environment:
 
-`batch_ingest.py` accepts XML, PDF, and DOCX files. Each run writes
-`data/processed/ingestion_manifest.jsonl` and
-`data/processed/ingestion_failures.jsonl` alongside `chunks.jsonl`, so failed
-documents can be retried without silently disappearing from the corpus.
+Bash
+python -m venv venv
+source venv/bin/activate       # Mac/Linux
+venv\Scripts\Activate.ps1      # Windows
+Install dependencies:
 
-### Evidence provenance pipeline
+Bash
+pip install -r requirements.txt
+Run the services in separate terminals:
 
-`persist_corpus.py` creates persistent document and chunk records in Postgres,
-including PMCID/DOI where available. `extract_claims.py` extracts structured
-claims and stores each one only if its evidence quote matches an exact
-character span in its source chunk. The API exposes this proof trail at
-`GET /api/v1/evidence/documents/{document_id}/claims`. Rebuild the vector
-store after ingesting so retrieval results retain the stable `chunk_id` used by
-the evidence layer.
-
-### 5. Try each capability
-
-```bash
-python rag/search.py "your question"
-python rag/answer.py "your question"
-python agents/literature_review.py "your topic"
-python agents/contradiction_detection.py "your topic"
-python agents/hypothesis_generator.py "your topic"
-python agents/copilot.py "your question"   # auto-routes to the right one above
-```
-
-### 6. Run the dashboard
-
-```bash
-streamlit run dashboard/app.py
-```
-
-### 7. Run everything together
-
-```bash
-python run_services.py
-```
-
-## Quick Commands for Contributors
-
-```bash
-# Run the full test suite
-python -m pytest -q
-
-# Start the API locally
+Bash
+# Terminal 1: Start the API
 uvicorn api.main:app --host 127.0.0.1 --port 8000
 
-# Start the dashboard locally
+# Terminal 2: Start the Dashboard
 streamlit run dashboard/app.py
+4. Test Connections & Build the Data Pipeline
+Before querying the UI, you must ingest data. Run these commands sequentially:
 
-# Start both together
-python run_services.py
-```
+Bash
+# 1. Verify your .env credentials are correct
+python test_connections.py            
 
-## Redis cache
+# 2. Ingest the dataset and populate the databases
+python fetch_papers.py                # Download papers into data/papers/
+python ingestion/batch_ingest.py      # Parse and chunk them
+python ingestion/persist_corpus.py    # Persist documents/chunks to Postgres
+python rag/build_vector_store.py      # Build semantic search index in ChromaDB
+python nlp/extract_entities.py        # Extract entities via LLM
+python nlp/extract_claims.py          # Extract claims with exact source spans
+python knowledge_graph/build_graph.py # Build the Neo4j knowledge graph
+5. Testing Individual AI Capabilities Natively
+If you want to test the autonomous agents outside of the UI, you can run them directly:
 
-Redis caches semantic-search results for five minutes, graph statistics for
-five minutes, and graph samples for two minutes. Inspect cache behavior through
-the `X-Cache: HIT|MISS` response header. Rebuilding the vector store increments
-the corpus cache version, so search results from an older index are never
-served after a successful rebuild.
+Bash
+python rag/search.py "What are the benefits of SGLT2 inhibitors?"
+python agents/literature_review.py "Metformin efficacy"
+python agents/contradiction_detection.py "Cardiovascular outcomes"
+python agents/hypothesis_generator.py "Renal protection"
+python agents/copilot.py "Summarize the literature on SGLT2"
+🔍 API Verification & Smoke Testing
+To programmatically verify that the RAG pipeline, FastAPI engine, and Redis cache are functioning correctly, execute a sample query against your running API:
 
-## Local Smoke Test
-
-After the API is running, you can verify the answer flow with a simple request:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/api/v1/answer" \
+Bash
+curl -X POST "[http://127.0.0.1:8000/api/v1/answer](http://127.0.0.1:8000/api/v1/answer)" \
   -H "Content-Type: application/json" \
-  -d '{"query": "what is the answer?", "top_k": 2}'
-```
+  -d '{"query": "What are the therapeutic benefits of SGLT2 inhibitors?", "top_k": 3}'
+Expected Response Format:
 
-You should receive a JSON response containing an `answer` field and a `sources` list.
+JSON
+{
+  "answer": "SGLT2 inhibitors demonstrate significant renal and cardiovascular protective outcomes...",
+  "confidence_score": 0.94,
+  "sources": [
+    {
+      "document_id": "PMC1029384",
+      "section": "Discussion",
+      "citation": "Smith et al., 2024"
+    }
+  ]
+}
+(Check your terminal headers for X-Cache: HIT|MISS to verify Redis functionality).
 
----
+⚖️ Known Limitations
+Entity Extraction Accuracy: Depends on the LLM and is not validated against a gold-standard biomedical benchmark (appropriate for a prototype, not for clinical use).
 
-## Known Limitations
+Contradiction Detection: Can occasionally over- or under-report disagreements depending on the routed model.
 
-- Entity extraction accuracy depends on the LLM and is not validated against a gold-standard biomedical NER benchmark — appropriate for a prototype, not for clinical use.
-- Contradiction detection can occasionally over- or under-report disagreements depending on model choice; the current setup uses a larger model specifically to mitigate this, documented via testing during development.
-- The corpus (~100 papers on a single topic) is far smaller than the case study's stated production scale; this was a deliberate scope decision for a 4-week internship timeline, not an oversight.
-- Free-tier API rate limits (Groq) constrain how much context can be sent per request, addressed via chunk truncation and diversity-capped retrieval.
+Dataset Scale: The corpus (~100 papers on a single topic) is smaller than production scale; this was a deliberate scope decision for a 4-week timeline.
 
----
-
-## Team
-
-Built by [Your Name] and Sohaib Khattak, Ezitech AI/ML Internship, 2026.
+Rate Limits: Free-tier API limits constrain how much context can be sent per request, requiring chunk truncation and diversity-capped retrieval.

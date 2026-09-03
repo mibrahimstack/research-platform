@@ -9,10 +9,12 @@ Postgres connection that's existed since the project's setup is finally
 doing real work instead of sitting idle.
 
 Uses a small connection pool rather than opening a new connection per
-log call, since logging happens on every single request.
+log call, since logging happens on every single request. Includes a 
+self-healing mechanism for serverless databases (like Neon) that drop idle connections.
 """
 
 import time
+import psycopg2
 from contextlib import contextmanager
 from psycopg2 import pool as pg_pool
 
@@ -38,16 +40,40 @@ def close_pool():
 
 @contextmanager
 def get_connection():
-    """Borrows a connection from the pool, always returns it when done."""
+    """Borrows a connection from the pool, verifies it is alive, and returns it."""
     if _connection_pool is None:
         yield None
         return
 
-    conn = _connection_pool.getconn()
+    conn = None
+    # Self-healing loop: try up to 3 times to grab a healthy connection
+    for _ in range(3):
+        conn = _connection_pool.getconn()
+        try:
+            # Ping the database to check if Neon dropped the idle SSL connection
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            break  # Connection is alive and healthy!
+        except psycopg2.OperationalError:
+            # Connection is dead. Throw it away so the pool removes it.
+            _connection_pool.putconn(conn, close=True)
+            conn = None
+            time.sleep(0.5)  # Wait briefly for Neon to wake up before retrying
+
+    if conn is None:
+        raise Exception("Database connection failed after multiple retries. Neon may be unresponsive.")
+
     try:
         yield conn
+    except psycopg2.OperationalError:
+        # If the connection drops DURING the query execution, discard it
+        _connection_pool.putconn(conn, close=True)
+        conn = None
+        raise
     finally:
-        _connection_pool.putconn(conn)
+        # Return the healthy connection back to the pool
+        if conn is not None:
+            _connection_pool.putconn(conn)
 
 
 def _create_table_if_missing():

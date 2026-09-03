@@ -4,6 +4,8 @@ uvicorn[standard]
 python-dotenv
 requests
 pydantic-settings
+chromadb
+sentence-transformers
 
 # Knowledge graph + DB
 neo4j
@@ -30,3 +32,11 @@ pypdf
 
 # NLP/Entity extraction (pure-Python install; heavier ML deps are optional)
 spacy
+fpdf2==2.7.9
+
+# Database ORM (Required for your PostgreSQL connection)
+sqlalchemy
+
+# Testing Requirements (Required for GitHub Actions to run the tests)
+pytest
+httpx

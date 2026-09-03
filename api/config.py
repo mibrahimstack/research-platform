@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     neo4j_password: str
     postgres_url: str
     groq_api_key: str
+    
+    # Server configuration
+    host: str = "0.0.0.0"
+    port: int = 8000
+    dashboard_port: int = 8501  # <-- Add this line
+
+    # API authentication
+    api_keys: str = ""
 
     # API authentication — comma-separated list of valid keys, e.g.
     # "key_for_ibrahim,key_for_sohaib". Empty by default so the app

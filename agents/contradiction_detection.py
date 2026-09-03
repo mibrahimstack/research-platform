@@ -19,11 +19,11 @@ from groq import Groq
 from db.evidence import get_claims_for_documents
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
-from search import search # type: ignore
+from search import search 
 
 load_dotenv()
 
-LLM_MODEL = "llama-3.3-70b-versatile"  # stronger reasoning model — needed for nuanced contradiction judgment
+LLM_MODEL = "openai/gpt-oss-120b"  # stronger reasoning model — needed for nuanced contradiction judgment
 OUTPUT_DIR = "data/processed"
 
 
@@ -45,7 +45,7 @@ def retrieve_diverse_chunks(topic, top_k=12, max_per_paper=1):
             selected.append((doc, meta))
             per_paper_count[paper_id] = count + 1
 
-    return selected
+    return selected, results
 
 
 def build_context(selected_chunks, max_words_per_chunk=150):
@@ -54,8 +54,11 @@ def build_context(selected_chunks, max_words_per_chunk=150):
         words = doc.split()
         truncated = " ".join(words[:max_words_per_chunk])
         block = (
-            f"[Source {i}] Paper: \"{meta['paper_title']}\" "
-            f"(Section: {meta['section']})\n{truncated}"
+            f"--- SOURCE {i} ---\n"
+            f"Paper Title: \"{meta['paper_title']}\"\n"
+            f"Section: {meta['section']}\n"
+            f"Text content:\n{truncated}\n"
+            f"----------------"
         )
         context_blocks.append(block)
     return "\n\n".join(context_blocks)
@@ -82,8 +85,31 @@ def build_claim_evidence(selected_chunks, max_claims=24):
     return "\n\n".join(blocks)
 
 
+def compute_confidence(results):
+    """
+    Derives a confidence score (0-100) and label (High/Medium/Low) from
+    how closely the retrieved sources matched the question.
+    """
+    distances = results.get("distances", [[]])[0]
+    if not distances:
+        return 0.0, "Low"
+
+    similarities = [1 - d for d in distances]
+    avg_similarity = sum(similarities) / len(similarities)
+
+    if avg_similarity >= 0.5:
+        label = "High"
+    elif avg_similarity >= 0.35:
+        label = "Medium"
+    else:
+        label = "Low"
+
+    score = round(min(avg_similarity / 0.65, 1.0) * 100, 1)
+    return score, label
+
+
 def detect_contradictions(topic, top_k=12, max_per_paper=1):
-    selected_chunks = retrieve_diverse_chunks(topic, top_k=top_k, max_per_paper=max_per_paper)
+    selected_chunks, raw_results = retrieve_diverse_chunks(topic, top_k=top_k, max_per_paper=max_per_paper)
     context = build_context(selected_chunks)
     claim_evidence = build_claim_evidence(selected_chunks)
 
@@ -93,7 +119,7 @@ def detect_contradictions(topic, top_k=12, max_per_paper=1):
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
     system_prompt = (
-        "You are a critical research analyst. Your job is to find GENUINE "
+        "You are a strict, critical research analyst. Your job is to find GENUINE "
         "disagreements between the sources below — not to summarize them.\n\n"
         "A genuine contradiction means: two or more sources make OPPOSING "
         "factual claims about the EXACT SAME specific question (e.g. both "
@@ -108,16 +134,15 @@ def detect_contradictions(topic, top_k=12, max_per_paper=1):
         "- Two sources that actually AGREE but use different phrasing, "
         "different level of detail, or one gives a number while the other "
         "gives a qualitative statement pointing the same direction\n\n"
-        "For each genuine contradiction, cite both source numbers and "
-        "quote the specific conflicting claims, like: Source [2] found X, "
-        "while Source [5] found the opposite for the same question.\n\n"
         "If, after this strict filtering, you find NO genuine contradictions, "
         "say so plainly: 'No genuine contradictions found among these "
         "sources.' Do not stretch weak or unrelated differences into a "
-        "contradiction just to have something to report. Rate your "
-        "confidence in each genuine contradiction as High or Medium only — "
-        "if your confidence would be Low, it's not a real contradiction, "
-        "leave it out."
+        "contradiction just to have something to report.\n\n"
+        "CRITICAL CITATION RULES:\n"
+        "1. Every single factual claim or sentence MUST end with an inline citation.\n"
+        "2. Format the citation using the Paper Title exactly as provided in the source block, "
+        "like this: [Source: \"Exact Title of the Paper\"].\n"
+        "3. Do not simply list source numbers at the end. You must embed the citations inline at the end of every sentence."
     )
 
     provenance_instruction = (
@@ -142,7 +167,12 @@ def detect_contradictions(topic, top_k=12, max_per_paper=1):
         temperature=0.2,
     )
 
-    return response.choices[0].message.content, selected_chunks
+    base_answer = response.choices[0].message.content
+    c_score, c_label = compute_confidence(raw_results)
+    
+    final_answer = f"{base_answer}\n\n**Confidence:** {c_label} ({c_score}/100)"
+
+    return final_answer, selected_chunks
 
 
 def save_report(topic, report_text):
