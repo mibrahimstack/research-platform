@@ -199,9 +199,14 @@ def stream_text(text: str):
 # ============================================================
 @st.cache_resource
 def get_neo4j_driver():
+    uri = os.getenv("NEO4J_URI")
+    username = os.getenv("NEO4J_USERNAME")
+    password = os.getenv("NEO4J_PASSWORD")
+    if not uri or not username or not password:
+        raise ValueError("NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD must be configured.")
     return GraphDatabase.driver(
-        os.getenv("NEO4J_URI"),
-        auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD")),
+        uri,
+        auth=(username, password),
         max_connection_lifetime=200
     )
 
@@ -501,9 +506,19 @@ def page_overview():
         unsafe_allow_html=True,
     )
 
-    driver = get_neo4j_driver()
+    try:
+        driver = get_neo4j_driver()
+        counts = get_node_counts(driver)
+        top_drugs = get_top_drugs(driver)
+        top_diseases = get_top_diseases(driver)
+    except (ServiceUnavailable, SessionExpired, OSError, ValueError) as exc:
+        st.error("The knowledge graph is unavailable right now.")
+        st.info(
+            "Check the Streamlit secrets NEO4J_URI, NEO4J_USERNAME, and "
+            "NEO4J_PASSWORD. The configured Neo4j hostname could not be resolved."
+        )
+        return
 
-    counts = get_node_counts(driver)
     labels = ["Paper", "Author", "Disease", "Drug", "Gene", "Organization"]
     cols = st.columns(6)
     for col, label in zip(cols, labels):
@@ -514,14 +529,12 @@ def page_overview():
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("**Most Mentioned Drugs**")
-        top_drugs = get_top_drugs(driver)
         if top_drugs:
             st.bar_chart(top_drugs, color="#FBBF24")
         else:
             st.info("No drug data yet.")
     with col_b:
         st.markdown("**Most Mentioned Diseases**")
-        top_diseases = get_top_diseases(driver)
         if top_diseases:
             st.bar_chart(top_diseases, color="#4ADE80")
         else:
