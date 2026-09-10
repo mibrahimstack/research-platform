@@ -30,7 +30,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "rag"))
 from ingestion.upload_processor import process_uploaded_file 
 from rag.vector_store_writer import add_document_to_vector_store 
 from knowledge_graph.graph_writer import add_paper_to_graph 
-from nlp.extract_entities import extract_entities_for_paper 
+from nlp.extract_entities import extract_entities_for_paper
 from db.uploads import record_uploaded_document, get_uploaded_documents 
 from db import postgres
 
