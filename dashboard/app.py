@@ -38,8 +38,8 @@ from db import postgres
 load_dotenv()
 
 # Set Global API Variables to point to Railway
-API_BASE_URL = os.getenv("API_URL", "https://research-platform-production-0df2.up.railway.app")
-API_KEY = os.getenv("API_KEY", "GBeJBPCmhFxL5K5DvP9VXwjB897UasWCAma2FADH8vc")
+API_BASE_URL = os.getenv("API_BASE_URL", os.getenv("API_URL", "https://research-platform-production-0df2.up.railway.app"))
+API_KEY = os.getenv("API_KEY", "")
 
 @st.cache_resource
 def warmup_system():
@@ -68,11 +68,14 @@ if os.getenv("GITHUB_ACTIONS") != "true" and os.getenv("POSTGRES_URL"):
     init_postgres()
 
 try:
-    for _key in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD", "POSTGRES_URL", "GROQ_API_KEY"):
+    for _key in ("NEO4J_URI", "NEO4J_USERNAME", "NEO4J_PASSWORD", "POSTGRES_URL", "GROQ_API_KEY", "API_BASE_URL", "API_KEY"):
         if _key in st.secrets:
             os.environ[_key] = st.secrets[_key]
 except Exception:
     pass
+
+API_BASE_URL = os.getenv("API_BASE_URL", os.getenv("API_URL", API_BASE_URL))
+API_KEY = os.getenv("API_KEY", API_KEY)
 
 st.set_page_config(
     page_title="Research Intelligence Platform",
@@ -257,6 +260,35 @@ def build_graph_html(driver, limit=80):
                 seen_nodes.add(node_id)
         rel = record["r"]
         net.add_edge(rel.start_node.element_id, rel.end_node.element_id, title=rel.type)
+    net.set_options('{"physics": {"stabilization": {"iterations": 100}}}')
+    return net.generate_html()
+
+def fetch_graph_from_api(limit=80):
+    headers = {"X-API-Key": API_KEY} if API_KEY else {}
+    stats_response = requests.get(f"{API_BASE_URL}/api/v1/graph/stats", headers=headers, timeout=10)
+    subgraph_response = requests.get(
+        f"{API_BASE_URL}/api/v1/graph/subgraph", headers=headers, params={"limit": limit}, timeout=10
+    )
+    stats_response.raise_for_status()
+    subgraph_response.raise_for_status()
+    return stats_response.json(), subgraph_response.json()
+
+def build_graph_html_from_api(subgraph):
+    net = Network(height="520px", width="100%", bgcolor="#05080F", font_color="#E7ECF5")
+    color_map = {
+        "Paper": "#FB7185", "Author": "#22D3EE", "Disease": "#4ADE80",
+        "Drug": "#FBBF24", "Gene": "#A78BFA", "Organization": "#2DD4BF",
+    }
+    for node in subgraph.get("nodes", []):
+        label = node.get("label", "Unknown")
+        name = node.get("name", "Unknown")
+        display_name = (name[:40] + "...") if len(name) > 40 else name
+        net.add_node(
+            node["id"], label=display_name, title=f"{label}: {name}",
+            color=color_map.get(label, "#94A3B8"),
+        )
+    for edge in subgraph.get("edges", []):
+        net.add_edge(edge["source"], edge["target"], title=edge.get("relationship", ""))
     net.set_options('{"physics": {"stabilization": {"iterations": 100}}}')
     return net.generate_html()
 
@@ -507,16 +539,21 @@ def page_overview():
     )
 
     try:
-        driver = get_neo4j_driver()
-        counts = get_node_counts(driver)
-        top_drugs = get_top_drugs(driver)
-        top_diseases = get_top_diseases(driver)
-    except (ServiceUnavailable, SessionExpired, OSError, ValueError) as exc:
-        st.error("The knowledge graph is unavailable right now.")
-        st.info(
-            "Check the Streamlit secrets NEO4J_URI, NEO4J_USERNAME, and "
-            "NEO4J_PASSWORD. The configured Neo4j hostname could not be resolved."
-        )
+        graph_stats, graph_subgraph = fetch_graph_from_api()
+        counts = graph_stats.get("node_counts", {})
+        top_drugs = graph_stats.get("top_drugs", {})
+        top_diseases = graph_stats.get("top_diseases", {})
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 401:
+            st.error("The knowledge graph API rejected the dashboard API key.")
+            st.info("Set Streamlit secret API_KEY to one of the API_KEYS configured on Railway, then restart the app.")
+        else:
+            st.error("The knowledge graph API is unavailable right now.")
+            st.info("Check API_BASE_URL and the Railway API deployment, then restart the app.")
+        return
+    except requests.RequestException:
+        st.error("The knowledge graph API is unavailable right now.")
+        st.info("Check API_BASE_URL and API_KEY in the Streamlit secrets, then restart the app.")
         return
 
     labels = ["Paper", "Author", "Disease", "Drug", "Gene", "Organization"]
@@ -542,7 +579,7 @@ def page_overview():
 
     section_label("Knowledge Graph")
     with st.spinner("Loading graph..."):
-        graph_html = build_graph_html(driver)
+        graph_html = build_graph_html_from_api(graph_subgraph)
     components.html(graph_html, height=540)
 
 # ============================================================
